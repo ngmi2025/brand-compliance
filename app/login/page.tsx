@@ -99,15 +99,6 @@ export default function LoginPage() {
               {isLoading ? "Verifying..." : "Access Site"}
             </Button>
           </form>
-
-          {/* Temporary helper text - remove this once you set your password */}
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-xs text-yellow-800">
-              <strong>Default password:</strong> admin123
-              <br />
-              <span className="text-yellow-600">Set SITE_PASSWORD in Vercel environment variables to change this.</span>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
