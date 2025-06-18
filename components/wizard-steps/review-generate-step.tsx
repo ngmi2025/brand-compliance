@@ -1396,14 +1396,13 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
-            padding: "0.5rem", // Reduced from "1rem"
-            paddingTop: "0.5rem", // Reduced from "2rem" to minimize gap
+            padding: "0.5rem",
+            paddingTop: "0.5rem",
           }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
           onClick={(e) => {
-            // Close modal when clicking backdrop
             if (e.target === e.currentTarget) {
               closeDocPreview()
             }
