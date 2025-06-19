@@ -1376,7 +1376,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       <div className="flex justify-between p-8">
         <button
           onClick={onPrev}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-muted hover:bg-muted/80 h-10 py-2 px-4"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 h-10 py-2 px-4"
         >
           Previous
         </button>
