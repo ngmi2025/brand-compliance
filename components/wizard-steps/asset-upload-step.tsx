@@ -475,7 +475,7 @@ export function AssetUploadStep({ data, submissionType, wizardData, onUpdate, on
               Static Ad Images
             </h3>
             <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
                 dragActive
                   ? "border-blue-500 bg-blue-50 scale-105"
                   : "border-slate-300 hover:border-slate-400 hover:bg-slate-50"
@@ -484,7 +484,6 @@ export function AssetUploadStep({ data, submissionType, wizardData, onUpdate, on
               onDragLeave={(e) => handleDrag(e, "staticAds")}
               onDragOver={(e) => handleDrag(e, "staticAds")}
               onDrop={(e) => handleDrop(e, "staticAds")}
-              onClick={() => document.getElementById("static-ads-upload")?.click()}
             >
               <Upload className="h-12 w-12 text-slate-400 mx-auto mb-4" />
               <p className="text-lg font-semibold text-slate-700 mb-2">Drop ad images here or click to browse</p>
@@ -497,9 +496,11 @@ export function AssetUploadStep({ data, submissionType, wizardData, onUpdate, on
                 className="hidden"
                 id="static-ads-upload"
               />
-              <Button variant="outline" className="cursor-pointer border-blue-200 text-blue-600 hover:bg-blue-50">
-                Browse Files
-              </Button>
+              <Label htmlFor="static-ads-upload">
+                <Button variant="outline" className="cursor-pointer border-blue-200 text-blue-600 hover:bg-blue-50">
+                  Browse Files
+                </Button>
+              </Label>
             </div>
 
             {formData.staticAds.length > 0 && (
