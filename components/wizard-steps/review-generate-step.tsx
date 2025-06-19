@@ -22,7 +22,7 @@ import { Loader2 } from "lucide-react"
 
 interface ReviewGenerateStepProps {
   wizardData: WizardData
-  onUpdate: (data: { docGenerated: boolean; submissionId: string; status: string }) => void
+  onUpdate: (data: { docGenerated: boolean; submissionId: string; status: string; projectInfo?: any }) => void
   onNext: () => void
   onPrev: () => void
 }
@@ -263,6 +263,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
     const timestampStr = new Date().toISOString().split("T")[0]
     return `${issuerStr}-${cardProductStr}-compliance-${timestampStr}`
   })
+  const [editableSubmissionName, setEditableSubmissionName] = useState(wizardData.projectInfo.submissionName)
 
   const [introductionText, setIntroductionText] = useState(() => {
     const submissionType = wizardData.submissionType.submissionType
@@ -934,7 +935,22 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Submission Name</div>
-                <div className="text-base font-medium text-slate-800">{wizardData.projectInfo.submissionName}</div>
+                <input
+                  type="text"
+                  value={editableSubmissionName}
+                  onChange={(e) => {
+                    setEditableSubmissionName(e.target.value)
+                    // Update the wizard data immediately
+                    onUpdate({
+                      projectInfo: {
+                        ...wizardData.projectInfo,
+                        submissionName: e.target.value,
+                      },
+                    })
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter submission name"
+                />
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Submission Type</div>
