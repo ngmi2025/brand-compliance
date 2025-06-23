@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 // This object is now just for reference for text/urls.
-// The image data will be passed in the request body as base64.
+// Image data will now be URLs from Vercel Blob.
 const preApprovedAssetsReference = {
   primaryText: {
     "primary-1": "Earn 3X points on dining and travel purchases with the Chase Sapphire Preferred Card.",
@@ -28,10 +28,7 @@ const preApprovedAssetsReference = {
       title: "Chase Sapphire Preferred Application Page",
       url: "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
     },
-    "url-2": {
-      title: "Chase Ultimate Rewards Portal",
-      url: "https://ultimaterewards.chase.com",
-    },
+    "url-2": { title: "Chase Ultimate Rewards Portal", url: "https://ultimaterewards.chase.com" },
     "url-3": {
       title: "Chase Sapphire Benefits Page",
       url: "https://creditcards.chase.com/sapphire/benefits",
@@ -49,7 +46,7 @@ const preApprovedAssetsReference = {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("=== Document Generation API Called ===")
+    console.log("=== Document Generation API Called (URL-based) ===")
     const body = await request.json()
     const { wizardData, format = "html" } = body
 
@@ -58,8 +55,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "wizardData is required" }, { status: 400 })
     }
 
-    // The API is now simpler. It just generates HTML from the data it receives.
-    // All image data (uploaded and pre-approved) is expected to be in base64 format.
+    // wizardData.assets.staticAdsUrls, wizardData.assets.mockupUrls,
+    // and wizardData.preApproved.preApprovedCreativeUrls should now contain arrays of objects with { name/title, url }
+
     const htmlContent = generateDocumentHTML(wizardData)
 
     if (format === "html") {
@@ -68,13 +66,22 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // For PDF, we'll still generate HTML but add PDF controls
     const pdfHtml = generatePDFOptimizedHTML(wizardData)
     return new Response(pdfHtml, {
       headers: { "Content-Type": "text/html", "Cache-Control": "no-cache" },
     })
   } catch (error) {
-    console.error("=== API Error ===", error)
-    return NextResponse.json({ error: "Internal server error", message: error.message }, { status: 500 })
+    console.error("=== API Error in generate-document ===", error)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        message: errorMessage,
+        stack: process.env.NODE_ENV === "development" && error instanceof Error ? error.stack : undefined,
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -82,13 +89,10 @@ function generateDocumentHTML(wizardData: any): string {
   const { getIssuerName, getCardName } = getDisplayNames()
   const issuerName = getIssuerName(wizardData.projectInfo?.issuer || "")
   const cardProduct = getCardName(wizardData.projectInfo?.issuer || "", wizardData.projectInfo?.cardProduct || "")
-  const submissionName = wizardData.projectInfo?.submissionName || "Untitled Submission"
+  const submissionName = wizardData.projectInfo?.submissionName || wizardData.documentFilename || "Untitled Submission"
   const submissionType = wizardData.submissionType?.submissionType || ""
-  const date = new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  })
+  const introductionText = wizardData.introductionText || getIntroductionTextFallback(wizardData) // Use passed intro or fallback
+  const date = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
 
   return `
 <!DOCTYPE html>
@@ -96,7 +100,7 @@ function generateDocumentHTML(wizardData: any): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${issuerName} - ${cardProduct} Compliance Submission</title>
+    <title>${submissionName} - Compliance Document</title>
     <style>${getDocumentCSS()}</style>
 </head>
 <body>
@@ -118,7 +122,7 @@ function generateDocumentHTML(wizardData: any): string {
         </section>
         <section class="content-section">
             <h2>Introduction & Request</h2>
-            <p class="introduction-text">${getIntroductionText(wizardData)}</p>
+            <p class="introduction-text">${introductionText}</p>
         </section>
         <section class="content-section">
             <h2>Project Information</h2>
@@ -178,84 +182,113 @@ function generatePDFOptimizedHTML(wizardData: any): string {
 
 function generatePreApprovedAssetsHTML(wizardData: any): string {
   let html = ""
-  const {
-    selectedPrimaryText,
-    selectedHeadlines,
-    preApprovedCreativeBase64, // Use the new base64 data
-    selectedUrls,
-  } = wizardData.preApproved || {}
+  const { selectedPrimaryText, selectedHeadlines, preApprovedCreativeUrls, selectedUrls } = wizardData.preApproved || {}
 
   if (
-    !selectedPrimaryText?.length &&
-    !selectedHeadlines?.length &&
-    !preApprovedCreativeBase64?.length &&
-    !selectedUrls?.length
+    !(
+      selectedPrimaryText?.length > 0 ||
+      selectedHeadlines?.length > 0 ||
+      preApprovedCreativeUrls?.length > 0 ||
+      selectedUrls?.length > 0
+    )
   ) {
     return ""
   }
-
-  html += `<section class="content-section"><h2>Pre-Approved Assets</h2><p>The following pre-approved assets have been selected and will be referenced in this submission:</p>`
-
+  html += `<section class="content-section"><h2>Pre-Approved Assets</h2>
+             <p>The following pre-approved assets have been selected and will be referenced in this submission:</p>`
   if (selectedPrimaryText?.length > 0) {
     html += `<h3>Pre-Approved Primary Text (${selectedPrimaryText.length})</h3><ul class="asset-list">`
     selectedPrimaryText.forEach((id: string) => {
-      const text = preApprovedAssetsReference.primaryText[id]
-      if (text) html += `<li class="asset-item">${text}</li>`
+      const primaryText =
+        preApprovedAssetsReference.primaryText[id as keyof typeof preApprovedAssetsReference.primaryText]
+      if (primaryText) {
+        html += `<li class="asset-item">${primaryText}</li>`
+      }
     })
     html += `</ul>`
   }
-
   if (selectedHeadlines?.length > 0) {
     html += `<h3>Pre-Approved Headlines (${selectedHeadlines.length})</h3><ul class="asset-list">`
     selectedHeadlines.forEach((id: string) => {
-      const headline = preApprovedAssetsReference.headlines[id]
-      if (headline) html += `<li class="asset-item">${headline}</li>`
+      const headline = preApprovedAssetsReference.headlines[id as keyof typeof preApprovedAssetsReference.headlines]
+      if (headline) {
+        html += `<li class="asset-item">${headline}</li>`
+      }
     })
     html += `</ul>`
   }
-
-  // Use the preApprovedCreativeBase64 data passed in the payload
-  if (preApprovedCreativeBase64?.length > 0) {
-    html += `<h3>Pre-Approved Creative (${preApprovedCreativeBase64.length})</h3><div class="image-grid">`
-    preApprovedCreativeBase64.forEach((creative: { title: string; dataURL: string }) => {
-      if (creative && creative.dataURL) {
+  // Use preApprovedCreativeUrls which contains { id, title, url }
+  if (preApprovedCreativeUrls?.length > 0) {
+    html += `<h3>Pre-Approved Creative (${preApprovedCreativeUrls.length})</h3><div class="image-grid">`
+    preApprovedCreativeUrls.forEach((creative: { title: string; url: string }) => {
+      if (creative && creative.url) {
         html += `
           <div class="image-item">
-              <img src="${creative.dataURL}" alt="${creative.title || "Creative Asset"}" class="creative-image" />
+              <img src="${creative.url}" alt="${creative.title || "Creative Asset"}" class="creative-image" />
               <div class="image-caption">${creative.title || "Creative Asset"}</div>
           </div>`
       }
     })
     html += `</div>`
   }
-
   if (selectedUrls?.length > 0) {
     html += `<h3>Pre-Approved URLs (${selectedUrls.length})</h3><ul class="asset-list">`
     selectedUrls.forEach((id: string) => {
-      const url = preApprovedAssetsReference.urls[id]
-      if (url) html += `<li class="asset-item"><a href="${url.url}" target="_blank">${url.url}</a></li>`
+      const urlInfo = preApprovedAssetsReference.urls[id as keyof typeof preApprovedAssetsReference.urls]
+      if (urlInfo) {
+        html += `<li class="asset-item"><a href="${urlInfo.url}" target="_blank">${urlInfo.url}</a></li>`
+      }
     })
     html += `</ul>`
   }
-
   html += `</section>`
   return html
 }
 
-// The other HTML generation functions (getDocumentCSS, generateAssetsHTML, etc.) can remain as they were,
-// as they don't deal with the pre-approved creative images. I've included the full file for completeness.
-// ... (rest of the helper functions like getDocumentCSS, generateAssetsHTML, etc. are unchanged)
+function generateCreativeAssetsHTML(wizardData: any): string {
+  let html = ""
+  // Expecting wizardData.assets.staticAdsUrls and wizardData.assets.mockupUrls
+  // These should be arrays of objects like { name: string, url: string }
+  const staticAdsUrls = wizardData.assets?.staticAdsUrls || []
+  const mockupUrls = wizardData.assets?.mockupUrls || []
+
+  if (!(staticAdsUrls.length > 0 || mockupUrls.length > 0)) {
+    return ""
+  }
+  html += `<section class="content-section"><h2>Creative Assets & Mockups</h2>`
+  if (staticAdsUrls.length > 0) {
+    html += `<h3>Static Ad Images</h3><div class="image-grid">`
+    staticAdsUrls.forEach((image: { name: string; url: string }, index: number) => {
+      html += `
+        <div class="image-item">
+            <img src="${image.url}" alt="${image.name}" class="creative-image" />
+            <div class="image-caption">Static Ad ${index + 1}: ${image.name}</div>
+        </div>`
+    })
+    html += `</div>`
+  }
+  if (mockupUrls.length > 0) {
+    html += `<h3>Generated Ad Mockups</h3>
+             <p class="mockup-description">The following mockups demonstrate how the creative assets will appear on Meta platforms:</p>
+             <div class="mockup-grid">`
+    mockupUrls.forEach((mockup: { name: string; url: string }, index: number) => {
+      html += `
+        <div class="mockup-item">
+            <img src="${mockup.url}" alt="${mockup.name}" class="mockup-image" />
+            <div class="image-caption">Mockup ${index + 1}: ${mockup.name}</div>
+        </div>`
+    })
+    html += `</div>`
+  }
+  html += `</section>`
+  return html
+}
+
 function getDocumentCSS(): string {
   return `
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.6; color: #1f2937; max-width: 800px; margin: 0 auto; padding: 20px; background: white;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1f2937; max-width: 800px; margin: 0 auto; padding: 20px; background: white; }
     .document { background: white; padding: 0; }
-    .document-header {
-        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white;
-        padding: 2rem; margin-bottom: 2rem; border-radius: 8px;
-    }
+    .document-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 2rem; margin-bottom: 2rem; border-radius: 8px; }
     .header-content { display: flex; justify-content: space-between; align-items: center; }
     .company-logo { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
     .tagline { font-size: 1rem; opacity: 0.9; }
@@ -264,57 +297,28 @@ function getDocumentCSS(): string {
     .document-title { font-size: 1.8rem; font-weight: bold; color: #1e40af; margin-bottom: 0.5rem; }
     .document-subtitle { font-size: 1.1rem; color: #6b7280; }
     .content-section { margin-bottom: 2rem; }
-    .content-section h2 {
-        color: #1e40af; font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem;
-        padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb;
-    }
-    .content-section h3 {
-        color: #374151; font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem 0;
-    }
+    .content-section h2 { color: #1e40af; font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb; }
+    .content-section h3 { color: #374151; font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem 0; }
     .introduction-text { font-size: 1rem; line-height: 1.7; color: #374151; }
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
     .info-item { background: #f9fafb; padding: 1rem; border-radius: 6px; border-left: 4px solid #3b82f6; }
     .info-label { font-weight: 500; color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem; display: block; }
     .info-value { color: #1f2937; font-weight: 600; }
     .asset-list { list-style: none; padding: 0; margin: 1rem 0; }
-    .asset-item {
-        background: #f8fafc; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px;
-        border-left: 3px solid #10b981; font-size: 0.95rem; line-height: 1.5;
-    }
-    .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin: 1rem 0; }
-    .image-item { text-align: center; background: #f9fafb; border-radius: 8px; padding: 1rem; border: 1px solid #e5e7eb; }
-    .creative-image {
-        width: 100%; max-height: 200px; object-fit: contain; border-radius: 6px;
-        margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-    .mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin: 1.5rem 0; }
-    .mockup-item {
-        text-align: center; background: #f8fafc; border-radius: 12px; padding: 1.5rem;
-        border: 2px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-    .mockup-image {
-        width: 100%; max-height: 400px; object-fit: contain; border-radius: 8px;
-        margin-bottom: 0.75rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .image-caption { font-size: 0.875rem; color: #6b7280; font-weight: 500; margin-top: 0.5rem; }
-    .image-placeholder {
-      width: 100%; height: 150px; background: #f3f4f6; border: 2px dashed #d1d5db;
-      border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      color: #6b7280; font-size: 0.875rem; margin-bottom: 0.5rem;
-    }
-    .mockup-description { font-size: 0.95rem; color: #6b7280; margin-bottom: 1rem; font-style: italic; }
-    .document-footer {
-        margin-top: 3rem; padding: 2rem; background: #f9fafb;
-        border-top: 1px solid #e5e7eb; border-radius: 8px;
-    }
+    .asset-item { background: #f8fafc; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; border-left: 3px solid #10b981; font-size: 0.95rem; line-height: 1.5; }
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; } /* Adjusted minmax for smaller images */
+    .image-item { text-align: center; background: #f9fafb; border-radius: 8px; padding: 0.75rem; border: 1px solid #e5e7eb; }
+    .creative-image { width: 100%; max-height: 150px; object-fit: contain; border-radius: 6px; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
+    .mockup-item { text-align: center; background: #f8fafc; border-radius: 12px; padding: 1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .mockup-image { width: 100%; max-height: 350px; object-fit: contain; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .image-caption { font-size: 0.8rem; color: #6b7280; font-weight: 500; margin-top: 0.5rem; }
+    .document-footer { margin-top: 3rem; padding: 2rem; background: #f9fafb; border-top: 1px solid #e5e7eb; border-radius: 8px; }
     .footer-content { display: flex; justify-content: space-between; align-items: center; }
     .footer-left .company-name { font-weight: 600; color: #1f2937; }
     .footer-tagline { font-size: 0.875rem; color: #6b7280; }
     .footer-right { text-align: right; font-size: 0.875rem; color: #6b7280; }
-    @media print {
-        body { max-width: none; margin: 0; padding: 0; }
-        .document-header { background: #1e40af !important; -webkit-print-color-adjust: exact; }
-    }
+    @media print { body { max-width: none; margin: 0; padding: 0; } .document-header { background: #1e40af !important; -webkit-print-color-adjust: exact; } }
   `
 }
 
@@ -355,44 +359,10 @@ function generateAssetsHTML(wizardData: any): string {
   return html
 }
 
-function generateCreativeAssetsHTML(wizardData: any): string {
-  let html = ""
-  if (!(wizardData.assets?.staticAdsBase64?.length > 0 || wizardData.assets?.mockupScreenshotsBase64?.length > 0)) {
-    return ""
-  }
-  html += `<section class="content-section"><h2>Creative Assets & Mockups</h2>`
-  if (wizardData.assets?.staticAdsBase64?.length > 0) {
-    html += `<h3>Static Ad Images</h3><div class="image-grid">`
-    wizardData.assets.staticAdsBase64.forEach((image: any, index: number) => {
-      html += `
-        <div class="image-item">
-            <img src="${image.dataURL}" alt="${image.name}" class="creative-image" />
-            <div class="image-caption">Static Ad ${index + 1}: ${image.name}</div>
-        </div>`
-    })
-    html += `</div>`
-  }
-  if (wizardData.assets?.mockupScreenshotsBase64?.length > 0) {
-    html += `<h3>Generated Ad Mockups</h3>
-             <p class="mockup-description">The following mockups demonstrate how the creative assets will appear on Meta platforms:</p>
-             <div class="mockup-grid">`
-    wizardData.assets.mockupScreenshotsBase64.forEach((mockup: any, index: number) => {
-      html += `
-        <div class="mockup-item">
-            <img src="${mockup.dataURL}" alt="${mockup.name}" class="mockup-image" />
-            <div class="image-caption">Mockup ${index + 1}: ${mockup.name}</div>
-        </div>`
-    })
-    html += `</div>`
-  }
-  html += `</section>`
-  return html
-}
-
 function getReportTitle(wizardData: any): string {
   const { getIssuerName, getCardName } = getDisplayNames()
-  const brand = getIssuerName(wizardData.projectInfo?.issuer) || "UpgradedPoints"
-  const cardProduct = getCardName(wizardData.projectInfo?.issuer, wizardData.projectInfo?.cardProduct) || ""
+  const brand = getIssuerName(wizardData.projectInfo?.issuer || "") || "UpgradedPoints"
+  const cardProduct = getCardName(wizardData.projectInfo?.issuer || "", wizardData.projectInfo?.cardProduct || "") || ""
   const submissionType = wizardData.submissionType?.submissionType || ""
   switch (submissionType) {
     case "Full Campaign":
@@ -412,10 +382,11 @@ function getReportTitle(wizardData: any): string {
   }
 }
 
-function getIntroductionText(wizardData: any): string {
+// Fallback for introduction text if not provided in wizardData
+function getIntroductionTextFallback(wizardData: any): string {
   const submissionType = wizardData.submissionType?.submissionType
   const { getCardName } = getDisplayNames()
-  const cardName = getCardName(wizardData.projectInfo?.issuer, wizardData.projectInfo?.cardProduct)
+  const cardName = getCardName(wizardData.projectInfo?.issuer || "", wizardData.projectInfo?.cardProduct || "")
   switch (submissionType) {
     case "Full Campaign":
       return `We are seeking approval for a new campaign for the ${cardName}. This document outlines the ad copy and proposed visual mockups intended for use across Meta platforms.`
@@ -479,8 +450,12 @@ function getDisplayNames() {
       name: "Discover",
       cards: { "discover-it": "it Cash Back", "discover-it-miles": "it Miles", "discover-it-student": "it Student" },
     },
+  } as const
+
+  const getIssuerName = (issuerKey: string) => issuerData[issuerKey as keyof typeof issuerData]?.name || issuerKey
+  const getCardName = (issuerKey: string, cardKey: string) => {
+    const issuer = issuerData[issuerKey as keyof typeof issuerData]
+    return issuer?.cards[cardKey as keyof typeof issuer.cards] || cardKey
   }
-  const getIssuerName = (issuerKey: string) => issuerData[issuerKey]?.name || issuerKey
-  const getCardName = (issuerKey: string, cardKey: string) => issuerData[issuerKey]?.cards[cardKey] || cardKey
   return { getIssuerName, getCardName }
 }
