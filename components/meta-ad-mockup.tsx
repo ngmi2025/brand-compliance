@@ -5,23 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import {
-  Download,
-  RefreshCw,
-  ThumbsUp,
-  Share2,
-  MessageCircle,
-  MoreHorizontal,
-  Heart,
-  Send,
-  Bookmark,
-  Loader2,
-  Monitor,
-  Smartphone,
-  Facebook,
-  Instagram,
-  Check,
-} from "lucide-react"
+import { Download, RefreshCw, ThumbsUp, Share2, MessageCircle, MoreHorizontal, Heart, Send, Bookmark, Loader2, Monitor, Smartphone, Facebook, Instagram, Check } from 'lucide-react'
 import { toast } from "@/components/ui/use-toast"
 import * as htmlToImage from "html-to-image"
 

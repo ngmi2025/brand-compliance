@@ -497,6 +497,9 @@ export function AssetUploadStep({ data, submissionType, wizardData, onUpdate, on
                 className="hidden"
                 id="static-ads-upload"
               />
+              <Button variant="outline" className="cursor-pointer border-blue-200 text-blue-600 hover:bg-blue-50">
+                Browse Files
+              </Button>
             </div>
 
             {formData.staticAds.length > 0 && (

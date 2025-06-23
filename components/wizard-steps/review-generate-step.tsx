@@ -22,7 +22,7 @@ import { Loader2 } from "lucide-react"
 
 interface ReviewGenerateStepProps {
   wizardData: WizardData
-  onUpdate: (data: { docGenerated: boolean; submissionId: string; status: string; projectInfo?: any }) => void
+  onUpdate: (data: { docGenerated: boolean; submissionId: string; status: string }) => void
   onNext: () => void
   onPrev: () => void
 }
@@ -263,7 +263,6 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
     const timestampStr = new Date().toISOString().split("T")[0]
     return `${issuerStr}-${cardProductStr}-compliance-${timestampStr}`
   })
-  const [editableSubmissionName, setEditableSubmissionName] = useState(wizardData.projectInfo.submissionName)
 
   const [introductionText, setIntroductionText] = useState(() => {
     const submissionType = wizardData.submissionType.submissionType
@@ -719,39 +718,64 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
   // Add these new functions
   const handlePreviewDocument = async () => {
     try {
+      console.log("=== Starting document preview ===")
       setIsGeneratingDocument(true)
 
-      // Convert files to base64 before sending to API
-      const convertFileToBase64 = (file: File): Promise<string> => {
+      // Helper to convert file/blob to base64
+      const toBase64 = (file: File | Blob): Promise<string> => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
           reader.readAsDataURL(file)
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = (error) => reject(error)
         })
       }
 
-      // Convert static ads to base64
+      // 1. Convert uploaded assets
       const staticAdsBase64 = await Promise.all(
         (wizardData.assets.staticAds || []).map(async (file: File) => ({
           name: file.name,
-          size: file.size,
-          type: file.type,
-          dataURL: await convertFileToBase64(file),
+          dataURL: await toBase64(file),
         })),
       )
-
-      // Convert mockup screenshots to base64
       const mockupScreenshotsBase64 = await Promise.all(
         (wizardData.assets.mockupScreenshots || []).map(async (file: File) => ({
           name: file.name,
-          size: file.size,
-          type: file.type,
-          dataURL: await convertFileToBase64(file),
+          dataURL: await toBase64(file),
         })),
       )
 
-      // Create a modified wizardData with base64 images
+      // 2. Fetch and convert pre-approved assets
+      const preApprovedCreativeBase64 = await Promise.all(
+        (wizardData.preApproved.selectedCreative || []).map(async (creativeId: string) => {
+          const creative = preApprovedAssets.creative[creativeId]
+          if (!creative) return null
+
+          try {
+            // creative.imageUrl is the public path like '/amex-creative-1.png'
+            const response = await fetch(creative.imageUrl)
+            if (!response.ok) {
+              throw new Error(`Failed to fetch pre-approved creative: ${response.statusText}`)
+            }
+            const blob = await response.blob()
+            const dataURL = await toBase64(blob)
+            return {
+              id: creativeId,
+              title: creative.title,
+              dataURL: dataURL,
+            }
+          } catch (error) {
+            console.error(`Failed to process pre-approved creative ${creativeId}:`, error)
+            return {
+              id: creativeId,
+              title: creative.title,
+              dataURL: `/placeholder.svg?height=100&width=150&text=Error`, // Fallback
+            }
+          }
+        }),
+      )
+
+      // 3. Construct final payload
       const wizardDataWithImages = {
         ...wizardData,
         assets: {
@@ -759,8 +783,14 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
           staticAdsBase64,
           mockupScreenshotsBase64,
         },
+        preApproved: {
+          ...wizardData.preApproved,
+          // Add the new base64 data here
+          preApprovedCreativeBase64: preApprovedCreativeBase64.filter(Boolean),
+        },
       }
 
+      console.log("Sending request to API with all images as base64...")
       const response = await fetch("/api/generate-document", {
         method: "POST",
         headers: {
@@ -773,7 +803,14 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate preview")
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { message: errorText }
+        }
+        throw new Error(`API Error (${response.status}): ${errorData.message || errorData.error || "Unknown error"}`)
       }
 
       const htmlContent = await response.text()
@@ -781,11 +818,12 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       const url = URL.createObjectURL(blob)
       setDocumentPreviewUrl(url)
       setShowDocPreview(true)
+      console.log("Preview setup complete")
     } catch (error) {
-      console.error("Error generating preview:", error)
+      console.error("=== Error in handlePreviewDocument ===", error)
       toast({
         title: "Preview Failed",
-        description: "Failed to generate document preview. Please try again.",
+        description: `Failed to generate document preview: ${error.message}`,
         variant: "destructive",
       })
     } finally {
@@ -797,43 +835,59 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
     try {
       setIsGeneratingDocument(true)
 
-      // Convert files to base64 before sending to API
-      const convertFileToBase64 = (file: File): Promise<string> => {
+      // Helper to convert file/blob to base64
+      const toBase64 = (file: File | Blob): Promise<string> => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
           reader.readAsDataURL(file)
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = (error) => reject(error)
         })
       }
 
-      // Convert static ads to base64
+      // 1. Convert uploaded assets
       const staticAdsBase64 = await Promise.all(
         (wizardData.assets.staticAds || []).map(async (file: File) => ({
           name: file.name,
-          size: file.size,
-          type: file.type,
-          dataURL: await convertFileToBase64(file),
+          dataURL: await toBase64(file),
         })),
       )
-
-      // Convert mockup screenshots to base64
       const mockupScreenshotsBase64 = await Promise.all(
         (wizardData.assets.mockupScreenshots || []).map(async (file: File) => ({
           name: file.name,
-          size: file.size,
-          type: file.type,
-          dataURL: await convertFileToBase64(file),
+          dataURL: await toBase64(file),
         })),
       )
 
-      // Create a modified wizardData with base64 images
+      // 2. Fetch and convert pre-approved assets
+      const preApprovedCreativeBase64 = await Promise.all(
+        (wizardData.preApproved.selectedCreative || []).map(async (creativeId: string) => {
+          const creative = preApprovedAssets.creative[creativeId]
+          if (!creative) return null
+          try {
+            const response = await fetch(creative.imageUrl)
+            if (!response.ok) throw new Error("Failed to fetch pre-approved creative")
+            const blob = await response.blob()
+            const dataURL = await toBase64(blob)
+            return { id: creativeId, title: creative.title, dataURL: dataURL }
+          } catch (error) {
+            console.error(`Failed to process pre-approved creative ${creativeId}:`, error)
+            return { id: creativeId, title: creative.title, dataURL: "/placeholder.svg?text=Error" }
+          }
+        }),
+      )
+
+      // 3. Construct final payload
       const wizardDataWithImages = {
         ...wizardData,
         assets: {
           ...wizardData.assets,
           staticAdsBase64,
           mockupScreenshotsBase64,
+        },
+        preApproved: {
+          ...wizardData.preApproved,
+          preApprovedCreativeBase64: preApprovedCreativeBase64.filter(Boolean),
         },
       }
 
@@ -853,25 +907,18 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       }
 
       const htmlContent = await response.text()
-
-      // Open the HTML content in a new window/tab
       const newWindow = window.open("", "_blank")
       if (newWindow) {
-        // Update the document title to use custom filename
         const updatedHtmlContent = htmlContent.replace(/<title>.*?<\/title>/, `<title>${customFilename}</title>`)
         newWindow.document.write(updatedHtmlContent)
         newWindow.document.close()
       } else {
-        // Fallback: create a blob and open it
         const blob = new Blob([htmlContent], { type: "text/html" })
         const url = URL.createObjectURL(blob)
         window.open(url, "_blank")
-
-        // Clean up after a delay
         setTimeout(() => URL.revokeObjectURL(url), 1000)
       }
 
-      // Update wizard data to mark as generated
       onUpdate({
         docGenerated: true,
         submissionId,
@@ -935,26 +982,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Submission Name</div>
-                <input
-                  type="text"
-                  value={editableSubmissionName}
-                  onChange={(e) => {
-                    setEditableSubmissionName(e.target.value)
-                    // Update the wizard data immediately
-                    onUpdate({
-                      projectInfo: {
-                        ...wizardData.projectInfo,
-                        submissionName: e.target.value,
-                      },
-                    })
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter submission name"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-500">Submission Type</div>
-                <div className="text-base font-medium text-slate-800">{wizardData.submissionType.submissionType}</div>
+                <div className="text-base font-medium text-slate-800">{wizardData.projectInfo.submissionName}</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Document Filename</div>
@@ -1392,7 +1420,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       <div className="flex justify-between p-8">
         <button
           onClick={onPrev}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 h-10 py-2 px-4"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-muted hover:bg-muted/80 h-10 py-2 px-4"
         >
           Previous
         </button>

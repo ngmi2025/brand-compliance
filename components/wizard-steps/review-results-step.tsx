@@ -128,13 +128,13 @@ export function ReviewResultsStep({ results, onNext, onPrev }: ReviewResultsStep
         )}
 
         <div className="flex justify-between">
-          <Button variant="outline" onClick={onPrev}>
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Back
+          <Button variant="outline" onClick={onPrev} className="flex items-center gap-2">
+            <ChevronLeft className="h-4 w-4" />
+            Previous
           </Button>
-          <Button onClick={onNext}>
+          <Button onClick={onNext} className="flex items-center gap-2">
             Generate Report
-            <ChevronRight className="h-4 w-4 ml-2" />
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>
