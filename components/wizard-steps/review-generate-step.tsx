@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react"
 
 interface ReviewGenerateStepProps {
   wizardData: WizardData
-  onUpdate: (data: Partial<WizardData["submission"] & { projectInfo?: WizardData["projectInfo"] }>) => void // Modified to allow projectInfo updates
+  onUpdate: (data: Partial<WizardData["submission"] & { projectInfo?: WizardData["projectInfo"] }>) => void
   onNext: () => void
   onPrev: () => void
 }
@@ -42,7 +42,7 @@ const preApprovedAssets = {
       description: "Premium card design with blue gradient background and travel imagery",
       type: "Hero Banner",
       dimensions: "1200x628px",
-      imageUrl: "/amex-creative-1.png", // These are public paths to images in your /public folder
+      imageUrl: "/amex-creative-1.png",
       publisher: "Chase",
       cardProduct: "Sapphire Preferred",
       fileType: "PNG",
@@ -75,7 +75,7 @@ const preApprovedAssets = {
       description: "Clean product photography of the Gold Card with metallic finish",
       type: "Product Image",
       dimensions: "800x800px",
-      imageUrl: "/amex-dunkin-1.png", // Example: ensure this path is correct
+      imageUrl: "/amex-dunkin-1.png",
       publisher: "American Express",
       cardProduct: "Gold",
       fileType: "PNG",
@@ -129,7 +129,7 @@ const getDisplayNames = () => {
     },
     chase: { name: "Chase", cards: { "chase-sapphire-preferred": "Sapphire Preferred" /* ... */ } },
     // ... other issuers
-  } as const // Using 'as const' for better type inference
+  } as const
 
   const getIssuerName = (issuerKey: keyof typeof issuerData | string) => {
     return issuerData[issuerKey as keyof typeof issuerData]?.name || issuerKey
@@ -144,11 +144,7 @@ const getDisplayNames = () => {
 
 export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: ReviewGenerateStepProps) {
   const [showDocPreview, setShowDocPreview] = useState(false)
-  const [submissionId, setSubmissionId] = useState(
-    wizardData?.submission?.submissionId || `SUB-${Math.floor(Math.random() * 10000)}`,
-  )
-  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false)
-  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
+  // submissionId, isGeneratingDocument, documentPreviewUrl states remain the same
 
   const [customFilename, setCustomFilename] = useState(() => {
     const issuerStr = wizardData.projectInfo?.issuer?.replace(/\s+/g, "-") || "unknown-issuer"
@@ -181,10 +177,16 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
     }
   })
 
+  const [submissionId, setSubmissionId] = useState(
+    wizardData?.submission?.submissionId || `SUB-${Math.floor(Math.random() * 10000)}`,
+  )
+  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false)
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
+
   const closeDocPreview = () => {
     setShowDocPreview(false)
     if (documentPreviewUrl) {
-      URL.revokeObjectURL(documentPreviewUrl) // Clean up blob URL
+      URL.revokeObjectURL(documentPreviewUrl)
       setDocumentPreviewUrl(null)
     }
   }
@@ -195,10 +197,26 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
         closeDocPreview()
       }
     }
-    if (showDocPreview) document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [showDocPreview])
 
+    if (showDocPreview) {
+      // We no longer hide body overflow
+      document.addEventListener("keydown", handleKeyDown)
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" })
+      })
+    } else {
+      // Ensure listener is removed when modal is not shown
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+
+    return () => {
+      // Cleanup listener on unmount or if showDocPreview changes
+      document.removeEventListener("keydown", handleKeyDown)
+      // No need to reset body overflow as we are not setting it anymore
+    }
+  }, [showDocPreview, documentPreviewUrl]) // Added documentPreviewUrl as closeDocPreview depends on it.
+
+  // processAndUploadAssets and handleGenerateAction functions remain the same...
   const processAndUploadAssets = async () => {
     toast({ title: "Processing assets...", description: "Uploading images to secure storage. This may take a moment." })
 
@@ -346,7 +364,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
         const blob = new Blob([htmlContent], { type: "text/html" })
         const url = URL.createObjectURL(blob)
         setDocumentPreviewUrl(url)
-        setShowDocPreview(true)
+        setShowDocPreview(true) // This will trigger the useEffect for scrolling
         toast({ title: "Preview Ready!", description: "Document preview is now open." })
       } else {
         // For download (PDF via HTML)
@@ -776,9 +794,11 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       </div>
 
       {/* Document Preview Modal */}
+      {/* The modal structure itself remains the same, fixed positioning is correct. */}
+      {/* The `overflow-y-auto` on the backdrop is not strictly needed if the page scrolls, but harmless. */}
       {showDocPreview && documentPreviewUrl && (
         <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
@@ -786,34 +806,39 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
             if (e.target === e.currentTarget) closeDocPreview()
           }}
         >
-          <div className="relative w-full max-w-5xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b bg-slate-50">
-              <h2 id="modal-title" className="text-lg font-semibold text-slate-800">
-                Document Preview
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleGenerateAction("pdf")} // Re-use download logic for PDF from preview
-                  disabled={isGeneratingDocument}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 rounded font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
-                >
-                  {isGeneratingDocument ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <FileCheck className="h-3 w-3" />
-                  )}
-                  Save as PDF
-                </button>
-                <button
-                  onClick={closeDocPreview}
-                  className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-md"
-                  aria-label="Close preview"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+          <div className="flex items-start justify-center min-h-full p-4 pt-12 sm:pt-16 md:pt-20 text-center">
+            <div
+              className="relative w-full max-w-5xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden text-left transform transition-all sm:align-middle"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center p-4 border-b bg-slate-50">
+                <h2 id="modal-title" className="text-lg font-semibold text-slate-800">
+                  Document Preview
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleGenerateAction("pdf")}
+                    disabled={isGeneratingDocument}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 rounded font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
+                  >
+                    {isGeneratingDocument ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <FileCheck className="h-3 w-3" />
+                    )}
+                    Save as PDF
+                  </button>
+                  <button
+                    onClick={closeDocPreview}
+                    className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-md"
+                    aria-label="Close preview"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
+              <iframe src={documentPreviewUrl} className="w-full flex-grow border-0" title="Document Preview" />
             </div>
-            <iframe src={documentPreviewUrl} className="w-full flex-grow border-0" title="Document Preview" />
           </div>
         </div>
       )}
