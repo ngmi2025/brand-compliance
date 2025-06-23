@@ -474,72 +474,260 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
             </div>
           </div>
 
-          {/* Submitted Assets Summary (simplified for brevity, ensure all asset types are covered) */}
+          {/* Submitted Assets */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Submitted Assets Summary</h3>
-            {wizardData.assets?.primaryText?.length > 0 && (
-              <p className="text-sm text-slate-600">Primary Text: {wizardData.assets.primaryText.length} items</p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Submitted Assets</h3>
+
+            {/* Primary Text */}
+            {wizardData.assets?.primaryText?.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Primary Text ({wizardData.assets.primaryText.length} items)
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.assets.primaryText.map((text, index) => (
+                    <div
+                      key={`submitted-primary-${index}`}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                    >
+                      <p className="text-sm text-slate-700">{text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No primary text submitted.</p>
             )}
-            {wizardData.assets?.headlines?.length > 0 && (
-              <p className="text-sm text-slate-600">Headlines: {wizardData.assets.headlines.length} items</p>
+
+            {/* Headlines */}
+            {wizardData.assets?.headlines?.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Headlines ({wizardData.assets.headlines.length} items)
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.assets.headlines.map((headline, index) => (
+                    <div
+                      key={`submitted-headline-${index}`}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                    >
+                      <p className="text-sm text-slate-700">{headline}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No headlines submitted.</p>
             )}
-            {wizardData.assets?.staticAds?.length > 0 && (
-              <div className="mb-2">
-                <p className="text-sm text-slate-600">Static Ads: {wizardData.assets.staticAds.length} files</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mt-1">
+
+            {/* Landing Page URLs */}
+            {wizardData.assets?.landingPageUrls?.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Landing Page URLs ({wizardData.assets.landingPageUrls.length} items)
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.assets.landingPageUrls.map((url, index) => (
+                    <div key={`submitted-url-${index}`} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline break-all"
+                      >
+                        {url}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No landing page URLs submitted.</p>
+            )}
+
+            {/* Static Ads (remains as is, visual check) */}
+            {wizardData.assets.staticAds?.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Static Ads ({wizardData.assets.staticAds.length} files)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {wizardData.assets.staticAds.map((ad, index) => (
-                    <div
-                      key={index}
-                      className="aspect-square bg-slate-100 rounded flex items-center justify-center overflow-hidden"
-                    >
-                      <img
-                        src={URL.createObjectURL(ad) || "/placeholder.svg"}
-                        alt={ad.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
+                    <div key={index} className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-2 overflow-hidden">
+                        <img
+                          src={URL.createObjectURL(ad) || "/placeholder.svg"}
+                          alt={`Ad ${index + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 truncate" title={ad.name}>
+                        {ad.name}
+                      </p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {wizardData.assets?.mockupScreenshots?.length > 0 && (
-              <div className="mb-2">
-                <p className="text-sm text-slate-600">
-                  Mockup Screenshots: {wizardData.assets.mockupScreenshots.length} files
-                </p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mt-1">
-                  {wizardData.assets.mockupScreenshots.map((mockup, index) => (
-                    <div
-                      key={index}
-                      className="aspect-square bg-slate-100 rounded flex items-center justify-center overflow-hidden"
-                    >
-                      <img
-                        src={URL.createObjectURL(mockup) || "/placeholder.svg"}
-                        alt={mockup.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
+
+            {/* Mockup Screenshots (remains as is, visual check) */}
+            {wizardData.assets.mockupScreenshots?.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Mockup Screenshots ({wizardData.assets.mockupScreenshots.length} files)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {wizardData.assets.mockupScreenshots.map((screenshot, index) => (
+                    <div key={index} className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-2 overflow-hidden">
+                        <img
+                          src={URL.createObjectURL(screenshot) || "/placeholder.svg"}
+                          alt={`Screenshot ${index + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 truncate" title={screenshot.name}>
+                        {screenshot.name}
+                      </p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {/* ... other asset types ... */}
           </div>
 
-          {/* Pre-Approved Assets Summary (simplified) */}
+          {/* Compliance Summary */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Pre-Approved Assets Summary</h3>
-            {wizardData.preApproved?.selectedPrimaryText?.length > 0 && (
-              <p className="text-sm text-slate-600">
-                Pre-Approved Primary Text: {wizardData.preApproved.selectedPrimaryText.length} items
-              </p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Compliance Summary</h3>
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm">
+              <div className="flex items-start gap-3 mb-3">
+                <FileCheck className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-base font-semibold text-blue-800">Automated Compliance Check Status</h4>
+                  {wizardData.complianceResults?.allPassed ? (
+                    <p className="text-sm text-green-700 font-medium mt-1">
+                      All automated compliance checks passed successfully.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-red-700 font-medium mt-1">
+                      Some automated compliance checks identified potential issues.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {wizardData.complianceResults && (
+                <div className="text-sm text-slate-700 space-y-1 mb-3">
+                  <p>Number of rules checked: {wizardData.complianceResults.results?.length || "N/A"}.</p>
+                  {wizardData.complianceResults.summary && <p>Summary: {wizardData.complianceResults.summary}</p>}
+                  {!wizardData.complianceResults.allPassed &&
+                    wizardData.complianceResults.results?.some((r) => !r.passed) && (
+                      <p className="text-amber-700">
+                        For a detailed breakdown of any warnings or errors, please refer back to the 'Review Results'
+                        step.
+                      </p>
+                    )}
+                </div>
+              )}
+
+              <div className="text-xs text-blue-600 italic border-t border-blue-200 pt-3 mt-3">
+                Please note: The detailed results of these automated compliance checks are for your internal review and
+                guidance. They will not be included in the final generated document intended for external submission.
+              </div>
+            </div>
+          </div>
+
+          {/* Pre-Approved Assets */}
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Pre-Approved Assets</h3>
+
+            {/* Pre-Approved Primary Text */}
+            {wizardData.preApproved.selectedPrimaryText?.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Pre-Approved Primary Text ({wizardData.preApproved.selectedPrimaryText.length})
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.preApproved.selectedPrimaryText.map((primaryId) => {
+                    const primaryText =
+                      preApprovedAssets.primaryText[primaryId as keyof typeof preApprovedAssets.primaryText]
+                    return (
+                      <div key={primaryId} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                        <p className="text-sm text-slate-700">{primaryText || `ID: ${primaryId} not found`}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No pre-approved primary text selected.</p>
             )}
-            {wizardData.preApproved?.selectedCreative?.length > 0 && (
-              <p className="text-sm text-slate-600">
-                Pre-Approved Creative: {wizardData.preApproved.selectedCreative.length} items
-              </p>
+
+            {/* Pre-Approved Headlines */}
+            {wizardData.preApproved.selectedHeadlines?.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Pre-Approved Headlines ({wizardData.preApproved.selectedHeadlines.length})
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.preApproved.selectedHeadlines.map((headlineId) => {
+                    const headline = preApprovedAssets.headlines[headlineId as keyof typeof preApprovedAssets.headlines]
+                    return (
+                      <div key={headlineId} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <p className="text-sm text-slate-700">{headline || `ID: ${headlineId} not found`}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No pre-approved headlines selected.</p>
             )}
-            {/* ... other pre-approved asset types ... */}
+
+            {/* Pre-Approved Creative */}
+            {wizardData.preApproved.selectedCreative.length > 0 ? (
+              <div className="mb-6">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Pre-Approved Creative ({wizardData.preApproved.selectedCreative.length})
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {wizardData.preApproved.selectedCreative.map((creativeId) => {
+                    const creative = preApprovedAssets.creative[creativeId as keyof typeof preApprovedAssets.creative]
+                    if (!creative) {
+                      return (
+                        <div key={creativeId} className="p-3 bg-red-50 rounded-lg border border-red-200">
+                          <p className="text-sm text-red-700">Creative ID: {creativeId} not found</p>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div
+                        key={creativeId}
+                        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+                      >
+                        <div className="relative aspect-video bg-slate-100">
+                          <img
+                            src={creative.imageUrl || "/placeholder.svg"}
+                            alt={creative.title}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="p-3">
+                          <p className="text-sm font-medium text-slate-800 truncate" title={creative.title}>
+                            {creative.title}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {creative.publisher} • {creative.cardProduct}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-6">No pre-approved creative selected.</p>
+            )}
           </div>
 
           {/* Action Buttons */}
