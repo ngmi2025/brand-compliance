@@ -982,7 +982,21 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Submission Name</div>
-                <div className="text-base font-medium text-slate-800">{wizardData.projectInfo.submissionName}</div>
+                <input
+                  type="text"
+                  value={wizardData.projectInfo.submissionName}
+                  onChange={(e) => {
+                    const updatedProjectInfo = {
+                      ...wizardData.projectInfo,
+                      submissionName: e.target.value,
+                    }
+                    onUpdate({ projectInfo: updatedProjectInfo })
+                    // Update the wizard data through the parent component
+                    // We'll need to add this functionality
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter submission name"
+                />
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-500">Document Filename</div>
@@ -1420,7 +1434,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       <div className="flex justify-between p-8">
         <button
           onClick={onPrev}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-muted hover:bg-muted/80 h-10 py-2 px-4"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-slate-500 text-white hover:bg-slate-600 h-10 py-2 px-4"
         >
           Previous
         </button>
