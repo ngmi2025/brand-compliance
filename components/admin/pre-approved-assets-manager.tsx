@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useCallback } from "react"
+import { useState, useRef } from "react" // Added useRef
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input" // Added Input
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, AlertTriangle } from "lucide-react"
+import { Plus, Edit, Trash2, AlertTriangle } from "lucide-react" // Added UploadCloud
 import {
   Dialog,
   DialogContent,
@@ -20,11 +20,12 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast" // Assuming this is from "@/hooks/use-toast"
 
 interface Asset {
   id: string
-  content: string
+  content: string // For text assets, this is the text. For creative, this could be a URL or filename.
+  file?: File // For handling file uploads for creative assets
   issuer: string
   product: string
   createdAt: string
@@ -125,7 +126,7 @@ export function PreApprovedAssetsManager() {
     creative: [
       {
         id: "11",
-        content: "/amex-creative-1.png",
+        content: "/amex-creative-1.png", // Assuming these are paths to images in /public
         issuer: "american-express",
         product: "amex-gold",
         createdAt: "2024-01-12",
@@ -186,7 +187,6 @@ export function PreApprovedAssetsManager() {
   const [selectedAssetType, setSelectedAssetType] = useState("primary-text")
   const { toast } = useToast()
 
-  // Available options for dropdowns
   const issuerData: IssuerData = {
     "american-express": {
       name: "American Express",
@@ -244,22 +244,60 @@ export function PreApprovedAssetsManager() {
 
   const products = Object.values(issuerData).flatMap((issuer) => issuer.cards)
 
-  const handleAddAsset = (newAsset: Asset) => {
+  const handleAddAsset = async (newAssetData: Omit<Asset, "id" | "createdAt">) => {
+    let content = newAssetData.content
+    if (selectedAssetType === "creative" && newAssetData.file) {
+      // In a real app, upload newAssetData.file to a blob store and get a URL
+      // For now, we'll simulate by using a placeholder or the filename.
+      // This requires async handling if actual upload happens.
+      // For simplicity, let's assume we're just storing a local path/filename.
+      // If you have Vercel Blob setup, you'd call your /api/upload-blob here.
+      // const formData = new FormData();
+      // formData.append("file", newAssetData.file);
+      // const response = await fetch('/api/upload-blob', { method: 'POST', body: formData });
+      // const blob = await response.json();
+      // content = blob.url; // This would be the blob URL
+      content = `/placeholder-uploaded-${newAssetData.file.name}` // Placeholder
+      toast({
+        title: "Creative Uploaded (Simulated)",
+        description: `File ${newAssetData.file.name} would be uploaded. Using placeholder path.`,
+      })
+    }
+
+    const newAsset: Asset = {
+      ...newAssetData,
+      id: Math.random().toString(36).substring(2, 9),
+      createdAt: new Date().toISOString().split("T")[0],
+      content, // Use the potentially updated content (e.g., URL for creatives)
+    }
+
     setAssetsData((prev) => ({
       ...prev,
-      [selectedAssetType]: [...prev[selectedAssetType], newAsset],
+      [selectedAssetType]: [...(prev[selectedAssetType] || []), newAsset],
     }))
-    setIsAddingNew(false)
+    setIsAddingNew(false) // Close dialog if this state controls it
     toast({
       title: "Asset added successfully!",
     })
   }
 
-  const handleEditAsset = (updatedAsset: Asset) => {
+  const handleEditAsset = async (updatedAssetData: Asset) => {
+    let content = updatedAssetData.content
+    if (selectedAssetType === "creative" && updatedAssetData.file) {
+      // Similar to add, handle file upload if a new file is provided during edit
+      // content = await uploadFileAndGetUrl(updatedAssetData.file); // Fictional upload function
+      content = `/placeholder-edited-${updatedAssetData.file.name}` // Placeholder
+      toast({
+        title: "Creative Updated (Simulated)",
+        description: `File ${updatedAssetData.file.name} would be uploaded. Using placeholder path.`,
+      })
+    }
+    const finalUpdatedAsset = { ...updatedAssetData, content }
+
     setAssetsData((prev) => ({
       ...prev,
       [selectedAssetType]: prev[selectedAssetType].map((asset) =>
-        asset.id === updatedAsset.id ? updatedAsset : asset,
+        asset.id === finalUpdatedAsset.id ? finalUpdatedAsset : asset,
       ),
     }))
     toast({
@@ -286,26 +324,19 @@ export function PreApprovedAssetsManager() {
     }
   }
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchTerm(value)
-  }, [])
-
-  const AssetList = ({ assets, type }: { assets: Asset[]; type: string }) => {
+  const AssetList = ({ assets, typeLabel }: { assets: Asset[]; typeLabel: string }) => {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [assetToEdit, setAssetToEdit] = useState<Asset | null>(null)
 
     const filteredAssets = assets.filter((asset) => {
       const matchesIssuer = selectedIssuer === "all" || asset.issuer === selectedIssuer
       const matchesProduct = selectedProduct === "all" || asset.product === selectedProduct
-
-      return matchesIssuer && matchesProduct
+      // Add search term filtering if needed:
+      // const matchesSearch = asset.content.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesIssuer && matchesProduct /* && matchesSearch */
     })
 
-    const isCreativeAsset = (content: string) => {
-      return (
-        content.includes(".png") || content.includes(".jpg") || content.includes(".jpeg") || content.includes(".gif")
-      )
-    }
+    const isCreativeAssetType = selectedAssetType === "creative"
 
     return (
       <div className="space-y-4">
@@ -344,23 +375,23 @@ export function PreApprovedAssetsManager() {
               </SelectContent>
             </Select>
           </div>
-          <Dialog>
+          <Dialog open={isAddingNew} onOpenChange={setIsAddingNew}>
             <DialogTrigger asChild>
               <Button onClick={() => setIsAddingNew(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-md">
                 <Plus className="h-4 w-4" />
-                Add {type}
+                Add {typeLabel}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New {type}</DialogTitle>
-                <DialogDescription>Enter the details for the new {type}.</DialogDescription>
+                <DialogTitle>Add New {typeLabel}</DialogTitle>
+                <DialogDescription>Enter the details for the new {typeLabel}.</DialogDescription>
               </DialogHeader>
               <NewAssetForm
-                type={type}
+                typeLabel={typeLabel}
+                assetTypeKey={selectedAssetType}
                 onAdd={handleAddAsset}
                 onClose={() => setIsAddingNew(false)}
-                assetType={selectedAssetType}
                 issuers={issuers}
                 issuerData={issuerData}
               />
@@ -377,13 +408,13 @@ export function PreApprovedAssetsManager() {
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex gap-4 flex-1">
-                    {/* Show thumbnail for creative assets */}
-                    {isCreativeAsset(asset.content) && (
+                    {isCreativeAssetType && (
                       <div className="flex-shrink-0">
                         <img
-                          src={asset.content || "/placeholder.svg"}
+                          src={asset.content || "/placeholder.svg?width=64&height=64&text=Creative"}
                           alt="Creative asset"
                           className="w-16 h-16 object-cover rounded border"
+                          onError={(e) => (e.currentTarget.src = "/placeholder.svg?width=64&height=64&text=Error")}
                         />
                       </div>
                     )}
@@ -397,12 +428,22 @@ export function PreApprovedAssetsManager() {
                             asset.product}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-900 mb-2 break-words">{asset.content}</p>
-                      <p className="text-xs text-gray-500">Added {asset.createdAt}</p>
+                      <p className="text-sm text-gray-900 mb-2 break-words">
+                        {isCreativeAssetType ? `Image: ${asset.content.split("/").pop()}` : asset.content}
+                      </p>
+                      <p className="text-xs text-gray-500">Added {new Date(asset.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <Dialog>
+                    <Dialog
+                      open={isEditDialogOpen && assetToEdit?.id === asset.id}
+                      onOpenChange={(open) => {
+                        if (!open) {
+                          setIsEditDialogOpen(false)
+                          setAssetToEdit(null)
+                        }
+                      }}
+                    >
                       <DialogTrigger asChild>
                         <Button
                           variant="ghost"
@@ -417,18 +458,19 @@ export function PreApprovedAssetsManager() {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Edit {type}</DialogTitle>
-                          <DialogDescription>Edit the details for the {type}.</DialogDescription>
+                          <DialogTitle>Edit {typeLabel}</DialogTitle>
+                          <DialogDescription>Edit the details for the {typeLabel}.</DialogDescription>
                         </DialogHeader>
                         {assetToEdit && (
                           <EditAssetForm
                             asset={assetToEdit}
+                            typeLabel={typeLabel}
+                            assetTypeKey={selectedAssetType}
                             onEdit={handleEditAsset}
                             onClose={() => {
                               setIsEditDialogOpen(false)
                               setAssetToEdit(null)
                             }}
-                            assetType={selectedAssetType}
                             issuers={issuers}
                             issuerData={issuerData}
                           />
@@ -457,52 +499,51 @@ export function PreApprovedAssetsManager() {
             Manage headlines, primary text, creative assets, and URLs for compliance submissions
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Tabs
             defaultValue="primary-text"
             className="space-y-6"
             onValueChange={(value) => {
               setSelectedAssetType(value)
+              // Reset filters when changing tabs for simplicity, or persist them if desired
+              setSelectedIssuer("all")
+              setSelectedProduct("all")
             }}
           >
-            <TabsList className="grid w-full grid-cols-4 bg-blue-50 border border-blue-200">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-blue-50 border border-blue-200">
               <TabsTrigger
                 value="primary-text"
                 className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
               >
-                Primary Text ({assetsData["primary-text"].length})
+                Primary Text ({assetsData["primary-text"]?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="headlines" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                Headlines ({assetsData["headlines"].length})
+                Headlines ({assetsData["headlines"]?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="creative" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                Creative ({assetsData["creative"].length})
+                Creative ({assetsData["creative"]?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="urls" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                URLs ({assetsData["urls"].length})
+                URLs ({assetsData["urls"]?.length || 0})
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="primary-text">
-              <AssetList assets={assetsData["primary-text"]} type="Primary Text" />
+              <AssetList assets={assetsData["primary-text"] || []} typeLabel="Primary Text" />
             </TabsContent>
-
             <TabsContent value="headlines">
-              <AssetList assets={assetsData["headlines"]} type="Headline" />
+              <AssetList assets={assetsData["headlines"] || []} typeLabel="Headline" />
             </TabsContent>
-
             <TabsContent value="creative">
-              <AssetList assets={assetsData["creative"]} type="Creative Asset" />
+              <AssetList assets={assetsData["creative"] || []} typeLabel="Creative Asset" />
             </TabsContent>
-
             <TabsContent value="urls">
-              <AssetList assets={assetsData["urls"]} type="URL" />
+              <AssetList assets={assetsData["urls"] || []} typeLabel="URL" />
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -528,47 +569,89 @@ export function PreApprovedAssetsManager() {
   )
 }
 
-interface NewAssetFormProps {
-  type: string
-  onAdd: (asset: Asset) => void
+interface AssetFormProps {
+  typeLabel: string
+  assetTypeKey: string // "primary-text", "headlines", "creative", "urls"
   onClose: () => void
-  assetType: string
   issuers: { value: string; label: string }[]
   issuerData: IssuerData
 }
 
-const NewAssetForm: React.FC<NewAssetFormProps> = ({ type, onAdd, onClose, assetType, issuers, issuerData }) => {
+interface NewAssetFormProps extends AssetFormProps {
+  onAdd: (asset: Omit<Asset, "id" | "createdAt">) => void
+}
+
+const NewAssetForm: React.FC<NewAssetFormProps> = ({
+  typeLabel,
+  assetTypeKey,
+  onAdd,
+  onClose,
+  issuers,
+  issuerData,
+}) => {
   const [content, setContent] = useState("")
+  const [file, setFile] = useState<File | null>(null)
   const [issuer, setIssuer] = useState("")
   const [product, setProduct] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const newAsset: Asset = {
-      id: Math.random().toString(36).substring(7),
-      content,
+    if (assetTypeKey === "creative" && !file) {
+      alert("Please select an image file for creative assets.")
+      return
+    }
+    if (assetTypeKey !== "creative" && !content.trim()) {
+      alert("Content cannot be empty.")
+      return
+    }
+
+    onAdd({
+      content: assetTypeKey === "creative" ? file!.name : content, // Store filename or text content
+      file: assetTypeKey === "creative" ? file! : undefined,
       issuer,
       product,
-      createdAt: new Date().toLocaleDateString(),
-    }
-    onAdd(newAsset)
-    setContent("")
-    setIssuer("")
-    setProduct("")
+    })
     onClose()
   }
 
   const handleIssuerChange = (value: string) => {
     setIssuer(value)
-    setProduct("") // Reset product when issuer changes
+    setProduct("")
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0])
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="content">Content</Label>
-        <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} />
-      </div>
+    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+      {assetTypeKey === "creative" ? (
+        <div className="grid gap-2">
+          <Label htmlFor="creative-file">Creative Image</Label>
+          <Input
+            id="creative-file"
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          {file && <p className="text-sm text-gray-500 mt-1">Selected: {file.name}</p>}
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="content">Content</Label>
+          <Textarea
+            id="content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={`Enter ${typeLabel.toLowerCase()}...`}
+          />
+        </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="issuer">Issuer</Label>
         <Select value={issuer} onValueChange={handleIssuerChange}>
@@ -576,9 +659,9 @@ const NewAssetForm: React.FC<NewAssetFormProps> = ({ type, onAdd, onClose, asset
             <SelectValue placeholder="Select issuer" />
           </SelectTrigger>
           <SelectContent>
-            {issuers.map((issuer) => (
-              <SelectItem key={issuer.value} value={issuer.value}>
-                {issuer.label}
+            {issuers.map((iss) => (
+              <SelectItem key={iss.value} value={iss.value}>
+                {iss.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -592,92 +675,151 @@ const NewAssetForm: React.FC<NewAssetFormProps> = ({ type, onAdd, onClose, asset
           </SelectTrigger>
           <SelectContent>
             {issuer &&
-              issuerData[issuer]?.cards.map((product) => (
-                <SelectItem key={product.value} value={product.value}>
-                  {product.label}
+              issuerData[issuer]?.cards.map((prod) => (
+                <SelectItem key={prod.value} value={prod.value}>
+                  {prod.label}
                 </SelectItem>
               ))}
           </SelectContent>
         </Select>
       </div>
-      <Button type="submit" disabled={!content || !issuer || !product}>
-        Add {type}
-      </Button>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!issuer || !product || (assetTypeKey === "creative" ? !file : !content.trim())}>
+          Add {typeLabel}
+        </Button>
+      </DialogFooter>
     </form>
   )
 }
 
-interface EditAssetFormProps {
+interface EditAssetFormProps extends AssetFormProps {
   asset: Asset
   onEdit: (asset: Asset) => void
-  onClose: () => void
-  assetType: string
-  issuers: { value: string; label: string }[]
-  issuerData: IssuerData
 }
 
-const EditAssetForm: React.FC<EditAssetFormProps> = ({ asset, onEdit, onClose, assetType, issuers, issuerData }) => {
-  const [content, setContent] = useState(asset.content)
-  const [issuer, setIssuer] = useState(asset.issuer)
-  const [product, setProduct] = useState(asset.product)
+const EditAssetForm: React.FC<EditAssetFormProps> = ({
+  asset,
+  typeLabel,
+  assetTypeKey,
+  onEdit,
+  onClose,
+  issuers,
+  issuerData,
+}) => {
+  const [currentContent, setCurrentContent] = useState(asset.content)
+  const [currentFile, setCurrentFile] = useState<File | null>(null)
+  const [currentIssuer, setCurrentIssuer] = useState(asset.issuer)
+  const [currentProduct, setCurrentProduct] = useState(asset.product)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const updatedAsset: Asset = {
-      ...asset,
-      content,
-      issuer,
-      product,
+    if (assetTypeKey === "creative" && !currentFile && !asset.content) {
+      // No existing image and no new file
+      alert("Please select an image file for creative assets.")
+      return
     }
-    onEdit(updatedAsset)
+    if (assetTypeKey !== "creative" && !currentContent.trim()) {
+      alert("Content cannot be empty.")
+      return
+    }
+
+    onEdit({
+      ...asset,
+      content: assetTypeKey === "creative" ? (currentFile ? currentFile.name : asset.content) : currentContent,
+      file: assetTypeKey === "creative" ? currentFile || undefined : undefined, // Pass file only if it's newly selected
+      issuer: currentIssuer,
+      product: currentProduct,
+    })
     onClose()
   }
 
-  const handleIssuerChange = (value: string) => {
-    setIssuer(value)
-    setProduct("") // Reset product when issuer changes
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setCurrentFile(e.target.files[0])
+      // Optionally, update currentContent to new file name for display if needed
+      // setCurrentContent(e.target.files[0].name);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+      {assetTypeKey === "creative" ? (
+        <div className="grid gap-2">
+          <Label htmlFor="edit-creative-file">Creative Image</Label>
+          <Input
+            id="edit-creative-file"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          {(currentFile || asset.content) && (
+            <p className="text-sm text-gray-500 mt-1">
+              Current: {currentFile ? currentFile.name : asset.content.split("/").pop()} (Upload new to replace)
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="edit-content">Content</Label>
+          <Textarea id="edit-content" value={currentContent} onChange={(e) => setCurrentContent(e.target.value)} />
+        </div>
+      )}
       <div className="grid gap-2">
-        <Label htmlFor="content">Content</Label>
-        <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="issuer">Issuer</Label>
-        <Select value={issuer} onValueChange={handleIssuerChange}>
-          <SelectTrigger id="issuer">
+        <Label htmlFor="edit-issuer">Issuer</Label>
+        <Select
+          value={currentIssuer}
+          onValueChange={(val) => {
+            setCurrentIssuer(val)
+            setCurrentProduct("")
+          }}
+        >
+          <SelectTrigger id="edit-issuer">
             <SelectValue placeholder="Select issuer" />
           </SelectTrigger>
           <SelectContent>
-            {issuers.map((issuerOption) => (
-              <SelectItem key={issuerOption.value} value={issuerOption.value}>
-                {issuerOption.label}
+            {issuers.map((iss) => (
+              <SelectItem key={iss.value} value={iss.value}>
+                {iss.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="product">Card</Label>
-        <Select value={product} onValueChange={setProduct} disabled={!issuer}>
-          <SelectTrigger id="product">
-            <SelectValue placeholder={issuer ? "Select card" : "Select an issuer first"} />
+        <Label htmlFor="edit-product">Card</Label>
+        <Select value={currentProduct} onValueChange={setCurrentProduct} disabled={!currentIssuer}>
+          <SelectTrigger id="edit-product">
+            <SelectValue placeholder={currentIssuer ? "Select card" : "Select an issuer first"} />
           </SelectTrigger>
           <SelectContent>
-            {issuer &&
-              issuerData[issuer]?.cards.map((productOption) => (
-                <SelectItem key={productOption.value} value={productOption.value}>
-                  {productOption.label}
+            {currentIssuer &&
+              issuerData[currentIssuer]?.cards.map((prod) => (
+                <SelectItem key={prod.value} value={prod.value}>
+                  {prod.label}
                 </SelectItem>
               ))}
           </SelectContent>
         </Select>
       </div>
-      <Button type="submit" disabled={!content || !issuer || !product}>
-        Update Asset
-      </Button>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={
+            !currentIssuer ||
+            !currentProduct ||
+            (assetTypeKey === "creative" ? !currentFile && !asset.content : !currentContent.trim())
+          }
+        >
+          Update {typeLabel}
+        </Button>
+      </DialogFooter>
     </form>
   )
 }

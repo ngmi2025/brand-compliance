@@ -1,16 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle } from "lucide-react"
 
-// Import step components
 import { ProjectSetupStep } from "./wizard-steps/project-setup-step"
 import { SubmissionTypeStep } from "./wizard-steps/submission-type-step"
 import { AssetUploadStep } from "./wizard-steps/asset-upload-step"
 import { ComplianceReviewStep } from "./wizard-steps/compliance-review-step"
 import { PreApprovedStep } from "./wizard-steps/pre-approved-step"
-import { ReviewGenerateStep } from "./wizard-steps/review-generate-step"
+import { ReviewGenerateStep } from "./wizard-steps/review-generate-step" // Correct import
 import { SaveDashboardStep } from "./wizard-steps/save-dashboard-step"
 
 export interface WizardData {
@@ -28,24 +28,58 @@ export interface WizardData {
     headlines: string[]
     landingPageUrls: string[]
     mockupScreenshots: File[]
-    videoFiles: File[]
-    deliveryInstructions: string
+    videoFiles: File[] // Assuming this is still needed
+    deliveryInstructions: string // Assuming this is still needed
+    // For uploaded assets that get URLs from blob storage
+    staticAdsUrls?: { name: string; url: string }[]
+    mockupUrls?: { name: string; url: string }[]
   }
   complianceResults: {
-    checks: any[]
-    allPassed: boolean
+    checks?: any[] // Replace 'any' with actual type if known
+    allPassed?: boolean
+    summary?: string
   }
   preApproved: {
     selectedPrimaryText: string[]
     selectedHeadlines: string[]
     selectedCreative: string[]
     selectedUrls: string[]
+    // For pre-approved assets that get URLs from blob storage
+    preApprovedCreativeUrls?: { id: string; title: string; url: string }[]
   }
   submission: {
-    pdfGenerated: boolean
+    // pdfGenerated?: boolean // Consider if this is still the best way to track
+    docGenerated?: boolean // Added this from ReviewGenerateStep's onUpdate
     submissionId: string
     status: string
+    // Potentially store document URLs here if generated and stored
+    document?: {
+      pdfUrl?: string | null
+      htmlPreviewUrl?: string | null // if you store the blob URL for HTML preview
+    }
   }
+  // Fields for ReviewGenerateStep state
+  introductionText?: string
+  documentFilename?: string
+}
+
+const initialWizardData: WizardData = {
+  projectInfo: { issuer: "", cardProduct: "", submissionName: "" },
+  submissionType: { submissionType: "" },
+  assets: {
+    staticAds: [],
+    primaryText: [],
+    headlines: [],
+    landingPageUrls: [],
+    mockupScreenshots: [],
+    videoFiles: [],
+    deliveryInstructions: "",
+  },
+  complianceResults: { allPassed: false, checks: [], summary: "" },
+  preApproved: { selectedPrimaryText: [], selectedHeadlines: [], selectedCreative: [], selectedUrls: [] },
+  submission: { submissionId: `sub_${Date.now()}`, status: "draft", docGenerated: false },
+  introductionText: "",
+  documentFilename: "",
 }
 
 const steps = [
@@ -61,53 +95,36 @@ const steps = [
 export default function ComplianceWizard() {
   const [currentStep, setCurrentStep] = useState(1)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [wizardData, setWizardData] = useState<WizardData>({
-    projectInfo: {
-      issuer: "",
-      cardProduct: "",
-      submissionName: "",
-    },
-    submissionType: {
-      submissionType: "",
-    },
-    assets: {
-      staticAds: [],
-      primaryText: [],
-      headlines: [],
-      landingPageUrls: [],
-      mockupScreenshots: [],
-      videoFiles: [],
-      deliveryInstructions: "",
-    },
-    complianceResults: {
-      checks: [],
-      allPassed: false,
-    },
-    preApproved: {
-      selectedPrimaryText: [],
-      selectedHeadlines: [],
-      selectedCreative: [],
-      selectedUrls: [],
-    },
+  const [wizardData, setWizardData] = useState<WizardData>(() => ({
+    ...initialWizardData,
     submission: {
-      pdfGenerated: false,
-      submissionId: "",
-      status: "draft",
+      ...initialWizardData.submission,
+      submissionId: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     },
-  })
+  }))
+
+  useEffect(() => {
+    // This effect can be used for loading saved data or other initializations if needed
+    // For now, the initial state is set with a unique submissionId directly in useState
+  }, [])
 
   const updateWizardData = (stepData: Partial<WizardData>) => {
     setWizardData((prev) => {
-      // Deep merge to ensure nested objects are properly updated
       const updated = { ...prev }
+      // Deep merge for nested objects like projectInfo, assets, etc.
       Object.keys(stepData).forEach((key) => {
-        if (stepData[key as keyof WizardData] && typeof stepData[key as keyof WizardData] === "object") {
-          updated[key as keyof WizardData] = {
-            ...updated[key as keyof WizardData],
-            ...stepData[key as keyof WizardData],
-          }
+        const K = key as keyof WizardData
+        if (
+          typeof prev[K] === "object" &&
+          prev[K] !== null &&
+          !Array.isArray(prev[K]) &&
+          typeof stepData[K] === "object" &&
+          stepData[K] !== null &&
+          !Array.isArray(stepData[K])
+        ) {
+          updated[K] = { ...prev[K], ...stepData[K] } as WizardData[keyof WizardData]
         } else {
-          updated[key as keyof WizardData] = stepData[key as keyof WizardData] as any
+          updated[K] = stepData[K] as WizardData[keyof WizardData]
         }
       })
       return updated
@@ -116,21 +133,21 @@ export default function ComplianceWizard() {
 
   const markStepComplete = (stepId: number) => {
     if (!completedSteps.includes(stepId)) {
-      setCompletedSteps((prev) => [...prev, stepId])
+      setCompletedSteps((prev) => [...prev, stepId].sort((a, b) => a - b))
     }
   }
 
   const goToStep = (stepId: number) => {
-    setCurrentStep(stepId)
-    // Scroll to top when changing steps
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    if (stepId <= currentStep || completedSteps.includes(stepId - 1) || stepId === 1) {
+      setCurrentStep(stepId)
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
   }
 
   const nextStep = () => {
     if (currentStep < steps.length) {
       markStepComplete(currentStep)
       setCurrentStep(currentStep + 1)
-      // Scroll to top when going to next step
       window.scrollTo({ top: 0, behavior: "smooth" })
     }
   }
@@ -138,9 +155,21 @@ export default function ComplianceWizard() {
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
-      // Scroll to top when going to previous step
       window.scrollTo({ top: 0, behavior: "smooth" })
     }
+  }
+
+  const resetWizardAndStartOver = () => {
+    setWizardData({
+      ...initialWizardData,
+      submission: {
+        ...initialWizardData.submission,
+        submissionId: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      },
+    })
+    setCurrentStep(1)
+    setCompletedSteps([])
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   const renderCurrentStep = () => {
@@ -167,7 +196,7 @@ export default function ComplianceWizard() {
           <AssetUploadStep
             data={wizardData.assets}
             submissionType={wizardData.submissionType.submissionType}
-            wizardData={wizardData} // Pass the full wizardData to access card info
+            wizardData={wizardData}
             onUpdate={(data) => updateWizardData({ assets: data })}
             onNext={nextStep}
             onPrev={prevStep}
@@ -193,15 +222,19 @@ export default function ComplianceWizard() {
         )
       case 6:
         return (
-          <ReviewGenerateStep
-            wizardData={wizardData}
-            onUpdate={(data) => updateWizardData({ submission: data })}
-            onNext={nextStep}
-            onPrev={prevStep}
-          />
+          <ReviewGenerateStep wizardData={wizardData} onUpdate={updateWizardData} onNext={nextStep} onPrev={prevStep} />
         )
       case 7:
-        return <SaveDashboardStep wizardData={wizardData} onComplete={() => markStepComplete(7)} onPrev={prevStep} />
+        return (
+          <SaveDashboardStep
+            wizardData={wizardData}
+            onComplete={() => {
+              markStepComplete(7) /* Potentially reset or navigate */
+            }}
+            onPrev={prevStep}
+            onStartNew={resetWizardAndStartOver}
+          />
+        )
       default:
         return null
     }
@@ -213,7 +246,6 @@ export default function ComplianceWizard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-blue-600">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          {/* Header with UpgradedPoints Branding */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-6">
               <img src="/upgraded-points-logo.png" alt="UpgradedPoints" className="h-8 w-auto" />
@@ -226,7 +258,6 @@ export default function ComplianceWizard() {
             </p>
           </div>
 
-          {/* Progress Section */}
           <Card className="mb-8 bg-white/95 backdrop-blur-sm border-0 shadow-xl">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
@@ -250,38 +281,24 @@ export default function ComplianceWizard() {
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-
-                {/* Step Navigation */}
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 md:gap-4">
                   {steps.map((step) => (
                     <div
                       key={step.id}
-                      className={`text-center cursor-pointer transition-all duration-300 ${
-                        step.id === currentStep
-                          ? "scale-105"
-                          : completedSteps.includes(step.id)
-                            ? "opacity-75 hover:opacity-100"
-                            : "opacity-50 hover:opacity-75"
-                      }`}
+                      className={`text-center cursor-pointer transition-all duration-300 p-2 rounded-lg ${step.id === currentStep ? "scale-105 shadow-lg bg-blue-50" : completedSteps.includes(step.id) ? "opacity-80 hover:opacity-100 bg-green-50" : "opacity-60 hover:opacity-80 bg-slate-50"} ${step.id > currentStep && !completedSteps.includes(step.id - 1) && step.id !== 1 ? "cursor-not-allowed opacity-40" : ""}`}
                       onClick={() => goToStep(step.id)}
                     >
                       <div
-                        className={`w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-2 transition-all duration-300 ${
-                          step.id === currentStep
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                            : completedSteps.includes(step.id)
-                              ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-md"
-                              : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                        }`}
+                        className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-xl flex items-center justify-center mb-1 sm:mb-2 transition-all duration-300 shadow-md ${step.id === currentStep ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white" : completedSteps.includes(step.id) ? "bg-gradient-to-r from-green-500 to-green-600 text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300"}`}
                       >
-                        {completedSteps.includes(step.id) ? (
-                          <CheckCircle className="h-6 w-6" />
+                        {completedSteps.includes(step.id) && step.id !== currentStep ? (
+                          <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
                         ) : (
-                          <span className="font-semibold">{step.id}</span>
+                          <span className="font-semibold text-sm sm:text-base">{step.id}</span>
                         )}
                       </div>
                       <div className="text-xs font-medium text-slate-700">{step.title}</div>
-                      <div className="text-xs text-slate-500 hidden sm:block mt-1">{step.description}</div>
+                      <div className="text-xs text-slate-500 hidden md:block mt-0.5">{step.description}</div>
                     </div>
                   ))}
                 </div>
@@ -289,23 +306,23 @@ export default function ComplianceWizard() {
             </CardContent>
           </Card>
 
-          {/* Current Step Content */}
           <div className="mb-8">{renderCurrentStep()}</div>
 
-          {/* Footer */}
           <footer className="mt-8 pt-4 border-t border-white/20 text-center">
-            <p className="text-white/60 text-sm">
-              Powered by UpgradedPoints.com -{" "}
-              <a href="/admin" className="font-bold text-white hover:text-blue-200 underline">
+            <p className="text-white/60 text-sm space-x-2">
+              <span>Powered by UpgradedPoints.com</span>
+              <span>-</span>
+              <Link href="/reports" className="font-bold text-white hover:text-blue-200 underline">
+                Dashboard
+              </Link>
+              <span>|</span>
+              <Link href="/admin" className="font-bold text-white hover:text-blue-200 underline">
                 Access Admin Panel
-              </a>
-              {" | "}
+              </Link>
+              <span>|</span>
               <button
-                onClick={async () => {
-                  await fetch("/api/auth/logout", { method: "POST" })
-                  window.location.href = "/login"
-                }}
-                className="font-bold text-white hover:text-blue-200 underline bg-transparent border-none cursor-pointer"
+                onClick={() => alert("Logout functionality to be implemented.")}
+                className="font-bold text-white hover:text-blue-200 underline bg-transparent border-none cursor-pointer p-0"
               >
                 Logout
               </button>

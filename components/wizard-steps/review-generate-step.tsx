@@ -2,20 +2,30 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, X, FileCheck } from "lucide-react"
-import type { WizardData } from "../compliance-wizard" // Ensure this path is correct
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { FileText, X, FileCheck, Trash2, Loader2 } from "lucide-react"
+import type { WizardData } from "../compliance-wizard"
 import { toast } from "@/components/ui/use-toast"
-import { Loader2 } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 interface ReviewGenerateStepProps {
   wizardData: WizardData
-  onUpdate: (data: Partial<WizardData["submission"] & { projectInfo?: WizardData["projectInfo"] }>) => void
+  onUpdate: (
+    data: Partial<
+      WizardData["submission"] & {
+        projectInfo?: WizardData["projectInfo"]
+        assets?: WizardData["assets"]
+        preApproved?: WizardData["preApproved"]
+      }
+    >,
+  ) => void
   onNext: () => void
   onPrev: () => void
 }
 
-// Mock data for pre-approved assets (ensure this matches your actual structure or is fetched)
-const preApprovedAssets = {
+const preApprovedAssetsMock = {
   primaryText: {
     "primary-1": "Earn 3X points on dining and travel purchases with the Chase Sapphire Preferred Card.",
     "primary-2": "Get 60,000 bonus points after spending $4,000 in the first 3 months.",
@@ -23,8 +33,6 @@ const preApprovedAssets = {
     "primary-4": "No foreign transaction fees on purchases made outside the United States.",
     "primary-5": "Complimentary DashPass subscription and Lyft Pink membership included.",
     "primary-6": "Earn 4X points on dining at restaurants worldwide with the American Express Gold Card.",
-    "primary-7": "Get up to $120 in dining credits annually at participating restaurants.",
-    "primary-8": "Enjoy complimentary access to airport lounges worldwide.",
   },
   headlines: {
     "headline-1": "Earn More on Every Purchase",
@@ -32,54 +40,28 @@ const preApprovedAssets = {
     "headline-3": "Unlock Premium Benefits",
     "headline-4": "Your Gateway to More Points",
     "headline-5": "Dining Rewards Redefined",
-    "headline-6": "Premium Travel Experience",
-    "headline-7": "Maximize Your Spending Power",
-    "headline-8": "Exclusive Member Benefits",
   },
   creative: {
     "creative-1": {
       title: "Chase Sapphire Preferred Card Hero Image",
-      description: "Premium card design with blue gradient background and travel imagery",
-      type: "Hero Banner",
-      dimensions: "1200x628px",
       imageUrl: "/amex-creative-1.png",
-      publisher: "Chase",
-      cardProduct: "Sapphire Preferred",
-      fileType: "PNG",
-      fileSize: "245KB",
+      description: "Premium card design with blue gradient background and travel imagery",
     },
     "creative-2": {
       title: "Dining Rewards Lifestyle Image",
-      description: "High-quality photo of couple dining at upscale restaurant",
-      type: "Lifestyle Photo",
-      dimensions: "800x600px",
       imageUrl: "/amex-creative-2.png",
-      publisher: "Chase",
-      cardProduct: "Sapphire Preferred",
-      fileType: "PNG",
-      fileSize: "198KB",
+      description: "High-quality photo of couple dining at upscale restaurant",
     },
     "creative-3": {
       title: "Travel Benefits Collage",
-      description: "Montage of travel destinations and luxury experiences",
-      type: "Composite Image",
-      dimensions: "1080x1080px",
       imageUrl: "/amex-creative-3.png",
-      publisher: "American Express",
-      cardProduct: "Platinum",
-      fileType: "PNG",
-      fileSize: "312KB",
+      description: "Montage of travel destinations and luxury experiences",
     },
     "creative-4": {
-      title: "American Express Gold Card Product Shot",
-      description: "Clean product photography of the Gold Card with metallic finish",
-      type: "Product Image",
-      dimensions: "800x800px",
+      // Example, ensure this ID is used if selected
+      title: "Amex Gold with Dunkin",
       imageUrl: "/amex-dunkin-1.png",
-      publisher: "American Express",
-      cardProduct: "Gold",
-      fileType: "PNG",
-      fileSize: "156KB",
+      description: "Amex Gold card with Dunkin Donuts partnership.",
     },
   },
   urls: {
@@ -87,36 +69,22 @@ const preApprovedAssets = {
       title: "Chase Sapphire Preferred Application Page",
       url: "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
       description: "Official application landing page with current bonus offer",
-      publisher: "Chase",
-      cardProduct: "Sapphire Preferred",
     },
     "url-2": {
       title: "Chase Ultimate Rewards Portal",
       url: "https://ultimaterewards.chase.com",
       description: "Points redemption portal for travel and shopping",
-      publisher: "Chase",
-      cardProduct: "Sapphire Preferred",
     },
     "url-3": {
-      title: "Chase Sapphire Benefits Page",
-      url: "https://creditcards.chase.com/sapphire/benefits",
-      description: "Detailed benefits and features overview page",
-      publisher: "Chase",
-      cardProduct: "Sapphire Preferred",
-    },
-    "url-4": {
       title: "American Express Gold Card Application",
       url: "https://americanexpress.com/us/credit-cards/card/gold-card",
-      description: "Official Gold Card application page with current welcome offer",
-      publisher: "American Express",
-      cardProduct: "Gold",
+      description: "Official Gold Card application page",
     },
-    "url-5": {
-      title: "American Express Membership Rewards",
-      url: "https://membershiprewards.com",
-      description: "Points redemption and transfer portal",
-      publisher: "American Express",
-      cardProduct: "Gold",
+    "url-4": {
+      // Added for testing, as per user image
+      title: "Upgraded Points Homepage",
+      url: "https://upgradedpoints.com",
+      description: "Homepage of Upgraded Points.",
     },
   },
 }
@@ -125,26 +93,32 @@ const getDisplayNames = () => {
   const issuerData = {
     "american-express": {
       name: "American Express",
-      cards: { "amex-gold": "Gold Card", "amex-platinum": "Platinum Card" /* ... */ },
+      cards: { "amex-gold": "Gold Card", "amex-platinum": "Platinum Card" },
     },
-    chase: { name: "Chase", cards: { "chase-sapphire-preferred": "Sapphire Preferred" /* ... */ } },
-    // ... other issuers
+    chase: { name: "Chase", cards: { "chase-sapphire-preferred": "Sapphire Preferred" } },
   } as const
-
-  const getIssuerName = (issuerKey: keyof typeof issuerData | string) => {
-    return issuerData[issuerKey as keyof typeof issuerData]?.name || issuerKey
-  }
-
-  const getCardName = (issuerKey: keyof typeof issuerData | string, cardKey: string) => {
+  const getIssuerName = (issuerKey: string) => issuerData[issuerKey as keyof typeof issuerData]?.name || issuerKey
+  const getCardName = (issuerKey: string, cardKey: string) => {
     const issuer = issuerData[issuerKey as keyof typeof issuerData]
     return issuer?.cards[cardKey as keyof typeof issuer.cards] || cardKey
   }
   return { getIssuerName, getCardName }
 }
 
+// Helper function to convert a Blob to a Base64 string
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
 export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: ReviewGenerateStepProps) {
   const [showDocPreview, setShowDocPreview] = useState(false)
-  // submissionId, isGeneratingDocument, documentPreviewUrl states remain the same
+  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false)
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
 
   const [customFilename, setCustomFilename] = useState(() => {
     const issuerStr = wizardData.projectInfo?.issuer?.replace(/\s+/g, "-") || "unknown-issuer"
@@ -154,6 +128,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
   })
 
   const [introductionText, setIntroductionText] = useState(() => {
+    // ... (introductionText logic remains the same)
     const submissionType = wizardData.submissionType?.submissionType
     const { getIssuerName, getCardName } = getDisplayNames()
     const issuerName = getIssuerName(wizardData.projectInfo?.issuer || "")
@@ -177,11 +152,7 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
     }
   })
 
-  const [submissionId, setSubmissionId] = useState(
-    wizardData?.submission?.submissionId || `SUB-${Math.floor(Math.random() * 10000)}`,
-  )
-  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false)
-  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
+  const { getIssuerName, getCardName: getCardDisplayName } = getDisplayNames()
 
   const closeDocPreview = () => {
     setShowDocPreview(false)
@@ -193,35 +164,70 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && showDocPreview) {
-        closeDocPreview()
-      }
+      if (event.key === "Escape" && showDocPreview) closeDocPreview()
     }
-
     if (showDocPreview) {
-      // We no longer hide body overflow
       document.addEventListener("keydown", handleKeyDown)
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" })
-      })
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }))
     } else {
-      // Ensure listener is removed when modal is not shown
       document.removeEventListener("keydown", handleKeyDown)
     }
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [showDocPreview, documentPreviewUrl])
 
-    return () => {
-      // Cleanup listener on unmount or if showDocPreview changes
-      document.removeEventListener("keydown", handleKeyDown)
-      // No need to reset body overflow as we are not setting it anymore
+  const handleDeleteSubmittedAsset = (
+    type: "primaryText" | "headlines" | "landingPageUrls" | "staticAds" | "mockupScreenshots",
+    index: number,
+  ) => {
+    // ... (logic remains the same)
+    const currentAssets = wizardData.assets
+      ? { ...wizardData.assets }
+      : {
+          staticAds: [],
+          primaryText: [],
+          headlines: [],
+          landingPageUrls: [],
+          mockupScreenshots: [],
+          videoFiles: [],
+          deliveryInstructions: "",
+        }
+    if (type === "primaryText" || type === "headlines" || type === "landingPageUrls") {
+      const items = [...(currentAssets[type] || [])]
+      items.splice(index, 1)
+      currentAssets[type] = items as any
+    } else if (type === "staticAds" || type === "mockupScreenshots") {
+      const files = [...(currentAssets[type] || [])]
+      files.splice(index, 1)
+      currentAssets[type] = files
     }
-  }, [showDocPreview, documentPreviewUrl]) // Added documentPreviewUrl as closeDocPreview depends on it.
+    onUpdate({ assets: currentAssets })
+    toast({ title: "Asset Removed", description: "The asset has been removed from this submission." })
+  }
 
-  // processAndUploadAssets and handleGenerateAction functions remain the same...
+  const handleRemovePreApprovedAsset = (
+    type: "selectedPrimaryText" | "selectedHeadlines" | "selectedCreative" | "selectedUrls",
+    idToRemove: string,
+  ) => {
+    // ... (logic remains the same)
+    const currentPreApproved = wizardData.preApproved
+      ? { ...wizardData.preApproved }
+      : { selectedPrimaryText: [], selectedHeadlines: [], selectedCreative: [], selectedUrls: [] }
+    const items = [...(currentPreApproved[type] || [])]
+    const updatedItems = items.filter((id) => id !== idToRemove)
+    currentPreApproved[type] = updatedItems
+    onUpdate({ preApproved: currentPreApproved })
+    toast({
+      title: "Pre-approved Asset Removed",
+      description: "The pre-approved asset has been removed from this submission.",
+    })
+  }
+
   const processAndUploadAssets = async () => {
-    toast({ title: "Processing assets...", description: "Uploading images to secure storage. This may take a moment." })
+    toast({ title: "Processing assets...", description: "Preparing assets for document generation." })
 
+    // For user-uploaded files (staticAds, mockupScreenshots) -> Upload to Blob, get URL
     const uploadFileToBlob = async (
-      file: File | Blob,
+      file: File,
       filename: string,
     ): Promise<{ name: string; url: string; error?: string }> => {
       try {
@@ -231,29 +237,16 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
           body: file,
         })
         if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: "Upload failed with status " + response.status }))
-          console.error(`Failed to upload ${filename}:`, errorData)
+          const errorData = await response.json().catch(() => ({ error: "Upload failed" }))
           return { name: filename, url: "", error: errorData.error || `Upload failed for ${filename}` }
         }
         const newBlob = await response.json()
-        if (!newBlob.url) {
-          console.error(`Upload successful for ${filename} but no URL returned:`, newBlob)
-          return { name: filename, url: "", error: `Upload for ${filename} did not return a URL.` }
-        }
         return { name: filename, url: newBlob.url }
       } catch (error) {
-        console.error(`Exception during upload of ${filename}:`, error)
-        return {
-          name: filename,
-          url: "",
-          error: error instanceof Error ? error.message : `Unknown error uploading ${filename}`,
-        }
+        return { name: filename, url: "", error: error instanceof Error ? error.message : "Unknown upload error" }
       }
     }
 
-    // 1. Upload user-provided assets
     const staticAdsUploadPromises = (wizardData.assets?.staticAds || []).map((file) =>
       uploadFileToBlob(file, file.name),
     )
@@ -261,88 +254,85 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       uploadFileToBlob(file, file.name),
     )
 
-    // 2. Fetch, then upload pre-approved assets
-    const preApprovedCreativeUploadPromises = (wizardData.preApproved?.selectedCreative || []).map(
+    // For pre-approved creative -> Fetch from public, convert to Base64
+    const preApprovedCreativeBase64Promises = (wizardData.preApproved?.selectedCreative || []).map(
       async (creativeId: string) => {
-        const creativeAsset = preApprovedAssets.creative[creativeId as keyof typeof preApprovedAssets.creative]
+        const creativeAsset = preApprovedAssetsMock.creative[creativeId as keyof typeof preApprovedAssetsMock.creative]
         if (!creativeAsset || !creativeAsset.imageUrl) {
           console.warn(`Pre-approved creative ${creativeId} not found or has no imageUrl.`)
-          return {
-            id: creativeId,
-            title: creativeAsset?.title || creativeId,
-            url: "",
-            error: "Asset not found or missing image URL",
-          }
+          return { id: creativeId, title: "Unknown", base64: "", error: "Asset not found or missing image URL" }
         }
         try {
-          // Fetch the image from the public path
           const response = await fetch(creativeAsset.imageUrl)
           if (!response.ok) {
             throw new Error(`Failed to fetch pre-approved image ${creativeAsset.imageUrl}: ${response.statusText}`)
           }
           const blob = await response.blob()
-          const originalFilename = creativeAsset.imageUrl.split("/").pop() || `${creativeId}.png`
-          const uploadedBlob = await uploadFileToBlob(blob, originalFilename)
-          return { id: creativeId, title: creativeAsset.title, url: uploadedBlob.url, error: uploadedBlob.error }
+          const base64 = await blobToBase64(blob)
+          return { id: creativeId, title: creativeAsset.title, base64, error: undefined }
         } catch (error) {
-          console.error(`Failed to process pre-approved creative ${creativeId}:`, error)
+          console.error(`Failed to process pre-approved creative ${creativeId} to Base64:`, error)
           return {
             id: creativeId,
             title: creativeAsset.title,
-            url: "",
-            error: error instanceof Error ? error.message : "Processing error",
+            base64: "",
+            error: error instanceof Error ? error.message : "Base64 conversion error",
           }
         }
       },
     )
 
-    const [staticAdsResults, mockupResults, preApprovedCreativeResults] = await Promise.all([
+    const [staticAdsResults, mockupResults, preApprovedCreativeBase64Results] = await Promise.all([
       Promise.all(staticAdsUploadPromises),
       Promise.all(mockupUploadPromises),
-      Promise.all(preApprovedCreativeUploadPromises),
+      Promise.all(preApprovedCreativeBase64Promises),
     ])
 
-    // Check for errors during upload
-    const allUploads = [...staticAdsResults, ...mockupResults, ...preApprovedCreativeResults]
-    const uploadErrors = allUploads.filter((result) => result && result.error)
+    const uploadErrors = [
+      ...staticAdsResults.filter((r) => r.error),
+      ...mockupResults.filter((r) => r.error),
+      ...preApprovedCreativeBase64Results.filter((r) => r.error),
+    ]
+
     if (uploadErrors.length > 0) {
-      uploadErrors.forEach((err) => toast({ title: "Upload Error", description: err.error, variant: "destructive" }))
-      throw new Error("Some assets failed to upload. Please check console for details.")
+      uploadErrors.forEach((err) =>
+        toast({ title: "Asset Processing Error", description: err.error, variant: "destructive" }),
+      )
+      throw new Error("Some assets failed to process. Please check console for details.")
     }
 
-    toast({ title: "Assets processed!", description: "All images uploaded successfully." })
+    toast({ title: "Assets processed!", description: "Assets ready for document." })
 
     return {
       staticAdsUrls: staticAdsResults.map((r) => ({ name: r.name, url: r.url })),
       mockupUrls: mockupResults.map((r) => ({ name: r.name, url: r.url })),
-      preApprovedCreativeUrls: preApprovedCreativeResults
-        .filter((r) => r && r.url)
-        .map((r) => ({ id: r!.id, title: r!.title, url: r!.url })),
+      preApprovedCreativeDataUrls: preApprovedCreativeBase64Results // Changed name to reflect Base64 content
+        .filter((r) => r && r.base64)
+        .map((r) => ({ id: r!.id, title: r!.title, base64: r!.base64 })),
     }
   }
 
   const handleGenerateAction = async (format: "html" | "pdf") => {
     setIsGeneratingDocument(true)
     try {
-      const { staticAdsUrls, mockupUrls, preApprovedCreativeUrls } = await processAndUploadAssets()
+      // Use the new preApprovedCreativeDataUrls from processAndUploadAssets
+      const { staticAdsUrls, mockupUrls, preApprovedCreativeDataUrls } = await processAndUploadAssets()
 
-      const wizardDataWithUrls = {
+      const wizardDataForApi = {
         ...wizardData,
         projectInfo: {
-          // Ensure projectInfo is included
           ...wizardData.projectInfo,
-          submissionName: wizardData.projectInfo?.submissionName || customFilename, // Use current submission name
+          submissionName: wizardData.projectInfo?.submissionName || customFilename,
         },
         assets: {
-          ...wizardData.assets,
-          staticAdsUrls, // Ensure these are arrays of { name: string, url: string }
-          mockupUrls, // Ensure these are arrays of { name: string, url: string }
+          ...wizardData.assets, // Includes primaryText, headlines, landingPageUrls
+          staticAdsUrls, // URLs for user-uploaded static ads
+          mockupUrls, // URLs for user-uploaded mockups
         },
         preApproved: {
-          ...wizardData.preApproved,
-          preApprovedCreativeUrls, // Ensure this is an array of { id: string, title: string, url: string }
+          ...wizardData.preApproved, // Includes selected IDs for text/headlines/urls
+          preApprovedCreativeDataUrls, // Base64 data for selected pre-approved creative
         },
-        // Include introductionText and customFilename if they need to be in the final wizardData for the API
         introductionText,
         documentFilename: customFilename,
       }
@@ -350,50 +340,40 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
       const response = await fetch("/api/generate-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wizardData: wizardDataWithUrls, format }),
+        body: JSON.stringify({ wizardData: wizardDataForApi, format }),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "API request failed" }))
         throw new Error(errorData.error || `API Error (${response.status})`)
       }
-
       const htmlContent = await response.text()
       if (format === "html") {
-        // For preview
         const blob = new Blob([htmlContent], { type: "text/html" })
         const url = URL.createObjectURL(blob)
         setDocumentPreviewUrl(url)
-        setShowDocPreview(true) // This will trigger the useEffect for scrolling
-        toast({ title: "Preview Ready!", description: "Document preview is now open." })
+        setShowDocPreview(true)
+        toast({ title: "Preview Ready!" })
       } else {
-        // For download (PDF via HTML)
         const newWindow = window.open("", "_blank")
         if (newWindow) {
-          const updatedHtmlContent = htmlContent.replace(/<title>.*?<\/title>/, `<title>${customFilename}</title>`)
-          newWindow.document.write(updatedHtmlContent)
+          newWindow.document.write(htmlContent.replace(/<title>.*?<\/title>/, `<title>${customFilename}</title>`))
           newWindow.document.close()
-          toast({ title: "Document Ready!", description: "Opened in a new tab. Use 'Save as PDF' there." })
+          toast({ title: "Document Ready for PDF!", description: "Use browser's 'Save as PDF'." })
         } else {
-          toast({
-            title: "Popup Blocked?",
-            description: "Could not open new tab. Please check popup settings.",
-            variant: "warning",
-          })
+          toast({ title: "Popup Blocked?", variant: "warning" })
         }
       }
-      onUpdate({
-        docGenerated: true,
-        submissionId, // Ensure submissionId is correctly managed
-        status: "pending_review",
-      })
+      // This is crucial for enabling the "Next" button
+      onUpdate({ submission: { ...wizardData.submission, docGenerated: true, status: "pending_review" } })
     } catch (error) {
-      console.error(`Error during document ${format === "html" ? "preview" : "download"}:`, error)
+      console.error(`Error during document ${format}:`, error)
       toast({
         title: `${format === "html" ? "Preview" : "Download"} Failed`,
-        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        description: error instanceof Error ? error.message : "Unknown error.",
         variant: "destructive",
       })
+      onUpdate({ submission: { ...wizardData.submission, docGenerated: false } }) // Explicitly set docGenerated to false on error
     } finally {
       setIsGeneratingDocument(false)
     }
@@ -415,164 +395,175 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
           Review your submission details and generate the compliance document.
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-8">
+      <CardContent className="p-6 sm:p-8">
         <div className="space-y-8">
           {/* Project Information */}
           <div>
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Project Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="text-sm font-medium text-slate-500">Issuer</div>
                 <div className="text-base font-medium text-slate-800">
-                  {getDisplayNames().getIssuerName(wizardData.projectInfo?.issuer || "")}
+                  {getIssuerName(wizardData.projectInfo?.issuer || "")}
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="text-sm font-medium text-slate-500">Card Product</div>
                 <div className="text-base font-medium text-slate-800">
-                  {getDisplayNames().getCardName(
-                    wizardData.projectInfo?.issuer || "",
-                    wizardData.projectInfo?.cardProduct || "",
-                  )}
+                  {getCardDisplayName(wizardData.projectInfo?.issuer || "", wizardData.projectInfo?.cardProduct || "")}
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-500">Submission Name</div>
-                <input
-                  type="text"
+              <div className="space-y-1">
+                <Label htmlFor="submissionNameRevStep6B" className="text-sm font-medium text-slate-500">
+                  Submission Name
+                </Label>
+                <Input
+                  id="submissionNameRevStep6B"
                   value={wizardData.projectInfo?.submissionName || ""}
-                  onChange={(e) => {
-                    onUpdate({
-                      projectInfo: {
-                        ...wizardData.projectInfo,
-                        submissionName: e.target.value,
-                      },
-                    })
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter submission name"
+                  onChange={(e) =>
+                    onUpdate({ projectInfo: { ...wizardData.projectInfo, submissionName: e.target.value } })
+                  }
+                  className="w-full"
                 />
               </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-500">Document Filename</div>
-                <input
-                  type="text"
+              <div className="space-y-1">
+                <Label htmlFor="customFilenameRevStep6B" className="text-sm font-medium text-slate-500">
+                  Document Filename
+                </Label>
+                <Input
+                  id="customFilenameRevStep6B"
                   value={customFilename}
                   onChange={(e) => setCustomFilename(e.target.value.replace(/[^a-zA-Z0-9-_]/g, "-"))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter filename for the document"
+                  className="w-full"
                 />
                 <div className="text-xs text-slate-500">
-                  The document will be saved as: <span className="font-mono">{customFilename}.pdf</span>
+                  Filename: <span className="font-mono">{customFilename}.pdf</span>
                 </div>
               </div>
             </div>
           </div>
-
           {/* Introduction & Request */}
           <div>
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Introduction & Request</h3>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="introduction" className="block text-sm font-medium text-slate-700 mb-2">
-                  What are you requesting approval for?
-                </label>
-                <textarea
-                  id="introduction"
-                  value={introductionText}
-                  onChange={(e) => setIntroductionText(e.target.value)}
-                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  rows={4}
-                  placeholder="Describe what you're seeking approval for..."
-                />
-              </div>
-              <div className="text-xs text-slate-500">
-                This introduction will appear at the beginning of your compliance document.
-              </div>
+            <div>
+              <Label htmlFor="introductionTextRevStep6B" className="block text-sm font-medium text-slate-700 mb-2">
+                What are you requesting approval for?
+              </Label>
+              <Textarea
+                id="introductionTextRevStep6B"
+                value={introductionText}
+                onChange={(e) => setIntroductionText(e.target.value)}
+                className="w-full"
+                rows={4}
+              />
+              <div className="text-xs text-slate-500 mt-1">This will appear at the beginning of your document.</div>
             </div>
           </div>
-
           {/* Submitted Assets */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Submitted Assets</h3>
-
-            {/* Primary Text */}
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Submitted Assets for Approval</h3>
+            {/* ... Submitted assets rendering with delete buttons ... */}
             {wizardData.assets?.primaryText?.length > 0 ? (
-              <div className="mb-6">
+              <div className="mb-4">
                 <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Primary Text ({wizardData.assets.primaryText.length} items)
+                  Primary Text ({wizardData.assets.primaryText.length})
                 </h4>
                 <div className="space-y-2">
                   {wizardData.assets.primaryText.map((text, index) => (
                     <div
-                      key={`submitted-primary-${index}`}
-                      className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                      key={`s-pt-${index}`}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border group"
                     >
-                      <p className="text-sm text-slate-700">{text}</p>
+                      <p className="text-sm text-slate-700 flex-grow mr-2">{text}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSubmittedAsset("primaryText", index)}
+                        className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                        aria-label="Delete primary text"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No primary text submitted.</p>
+              <p className="text-sm text-slate-500 italic mb-4">No primary text submitted.</p>
             )}
-
-            {/* Headlines */}
+            {/* ... Other submitted assets sections (headlines, URLs, staticAds, mockupScreenshots) remain the same ... */}
             {wizardData.assets?.headlines?.length > 0 ? (
-              <div className="mb-6">
+              <div className="mb-4">
                 <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Headlines ({wizardData.assets.headlines.length} items)
+                  Headlines ({wizardData.assets.headlines.length})
                 </h4>
                 <div className="space-y-2">
                   {wizardData.assets.headlines.map((headline, index) => (
                     <div
-                      key={`submitted-headline-${index}`}
-                      className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                      key={`s-hl-${index}`}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border group"
                     >
-                      <p className="text-sm text-slate-700">{headline}</p>
+                      <p className="text-sm text-slate-700 flex-grow mr-2">{headline}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSubmittedAsset("headlines", index)}
+                        className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                        aria-label="Delete headline"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No headlines submitted.</p>
+              <p className="text-sm text-slate-500 italic mb-4">No headlines submitted.</p>
             )}
-
-            {/* Landing Page URLs */}
             {wizardData.assets?.landingPageUrls?.length > 0 ? (
-              <div className="mb-6">
+              <div className="mb-4">
                 <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Landing Page URLs ({wizardData.assets.landingPageUrls.length} items)
+                  Landing Page URLs ({wizardData.assets.landingPageUrls.length})
                 </h4>
                 <div className="space-y-2">
                   {wizardData.assets.landingPageUrls.map((url, index) => (
-                    <div key={`submitted-url-${index}`} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div
+                      key={`s-url-${index}`}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border group"
+                    >
                       <a
-                        href={url}
+                        href={url.startsWith("http") ? url : `//${url}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline break-all"
+                        className="text-sm text-blue-600 hover:underline break-all flex-grow mr-2"
                       >
                         {url}
                       </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSubmittedAsset("landingPageUrls", index)}
+                        className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                        aria-label="Delete URL"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No landing page URLs submitted.</p>
+              <p className="text-sm text-slate-500 italic mb-4">No landing page URLs submitted.</p>
             )}
-
-            {/* Static Ads (remains as is, visual check) */}
-            {wizardData.assets.staticAds?.length > 0 && (
+            {wizardData.assets?.staticAds?.length > 0 && (
               <div className="mb-4">
                 <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Static Ads ({wizardData.assets.staticAds.length} files)
+                  Static Ads ({wizardData.assets.staticAds.length})
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {wizardData.assets.staticAds.map((ad, index) => (
-                    <div key={index} className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-2 overflow-hidden">
+                    <div key={`s-ad-${index}`} className="relative group p-2 bg-white rounded-lg border shadow-sm">
+                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-1 overflow-hidden">
                         <img
                           src={URL.createObjectURL(ad) || "/placeholder.svg"}
                           alt={`Ad ${index + 1}`}
@@ -582,178 +573,230 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
                       <p className="text-xs text-slate-500 truncate" title={ad.name}>
                         {ad.name}
                       </p>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleDeleteSubmittedAsset("staticAds", index)}
+                        className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                        aria-label="Delete static ad"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Mockup Screenshots (remains as is, visual check) */}
-            {wizardData.assets.mockupScreenshots?.length > 0 && (
+            {wizardData.assets?.mockupScreenshots?.length > 0 && (
               <div className="mb-4">
                 <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Mockup Screenshots ({wizardData.assets.mockupScreenshots.length} files)
+                  Mockup Screenshots ({wizardData.assets.mockupScreenshots.length})
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {wizardData.assets.mockupScreenshots.map((screenshot, index) => (
-                    <div key={index} className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-2 overflow-hidden">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {wizardData.assets.mockupScreenshots.map((ss, index) => (
+                    <div key={`s-ss-${index}`} className="relative group p-2 bg-white rounded-lg border shadow-sm">
+                      <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-1 overflow-hidden">
                         <img
-                          src={URL.createObjectURL(screenshot) || "/placeholder.svg"}
-                          alt={`Screenshot ${index + 1}`}
+                          src={URL.createObjectURL(ss) || "/placeholder.svg"}
+                          alt={`Mockup ${index + 1}`}
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>
-                      <p className="text-xs text-slate-500 truncate" title={screenshot.name}>
-                        {screenshot.name}
+                      <p className="text-xs text-slate-500 truncate" title={ss.name}>
+                        {ss.name}
                       </p>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => handleDeleteSubmittedAsset("mockupScreenshots", index)}
+                        className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                        aria-label="Delete mockup"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
           </div>
-
+          {/* Pre-Approved Assets */}
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Pre-Approved Assets Referenced</h3>
+            {wizardData.preApproved?.selectedPrimaryText?.length > 0 ? (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Primary Text ({wizardData.preApproved.selectedPrimaryText.length})
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.preApproved.selectedPrimaryText.map((id) => (
+                    <div
+                      key={`pa-pt-${id}`}
+                      className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 group"
+                    >
+                      <p className="text-sm text-slate-700 flex-grow mr-2">
+                        {preApprovedAssetsMock.primaryText[id as keyof typeof preApprovedAssetsMock.primaryText] ||
+                          `(Content for ID: ${id} not found)`}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemovePreApprovedAsset("selectedPrimaryText", id)}
+                        className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                        aria-label="Remove pre-approved primary text"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-4">No pre-approved primary text referenced.</p>
+            )}
+            {wizardData.preApproved?.selectedHeadlines?.length > 0 ? (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Headlines ({wizardData.preApproved.selectedHeadlines.length})
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.preApproved.selectedHeadlines.map((id) => (
+                    <div
+                      key={`pa-hl-${id}`}
+                      className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200 group"
+                    >
+                      <p className="text-sm text-slate-700 flex-grow mr-2">
+                        {preApprovedAssetsMock.headlines[id as keyof typeof preApprovedAssetsMock.headlines] ||
+                          `(Content for ID: ${id} not found)`}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemovePreApprovedAsset("selectedHeadlines", id)}
+                        className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                        aria-label="Remove pre-approved headline"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-4">No pre-approved headlines referenced.</p>
+            )}
+            {wizardData.preApproved?.selectedCreative?.length > 0 ? (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  Creative ({wizardData.preApproved.selectedCreative.length})
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {wizardData.preApproved.selectedCreative.map((id) => {
+                    const creative = preApprovedAssetsMock.creative[id as keyof typeof preApprovedAssetsMock.creative]
+                    return (
+                      <div
+                        key={`pa-cr-${id}`}
+                        className="relative group p-2 bg-purple-50 rounded-lg border border-purple-200"
+                      >
+                        <div className="aspect-video bg-slate-100 rounded flex items-center justify-center mb-1 overflow-hidden">
+                          <img
+                            src={creative?.imageUrl || "/placeholder.svg?width=100&height=60&query=Error"}
+                            alt={creative?.title || "Creative asset"}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-600 truncate" title={creative?.title}>
+                          {creative?.title || `(Title for ID: ${id} not found)`}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemovePreApprovedAsset("selectedCreative", id)}
+                          className="absolute top-1 right-1 h-6 w-6 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 bg-white/50 rounded-full"
+                          aria-label="Remove pre-approved creative"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-4">No pre-approved creative referenced.</p>
+            )}
+            {wizardData.preApproved?.selectedUrls?.length > 0 ? (
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-slate-700 mb-2">
+                  URLs ({wizardData.preApproved.selectedUrls.length})
+                </h4>
+                <div className="space-y-2">
+                  {wizardData.preApproved.selectedUrls.map((id) => {
+                    const urlAsset = preApprovedAssetsMock.urls[id as keyof typeof preApprovedAssetsMock.urls]
+                    return (
+                      <div
+                        key={`pa-url-${id}`}
+                        className="flex items-center justify-between p-3 bg-teal-50 rounded-lg border border-teal-200 group"
+                      >
+                        <div className="flex-grow mr-2">
+                          {urlAsset?.url ? (
+                            <a
+                              href={urlAsset.url.startsWith("http") ? urlAsset.url : `//${urlAsset.url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline break-all"
+                            >
+                              {urlAsset.url}
+                            </a>
+                          ) : (
+                            <p className="text-sm text-slate-500 italic">(URL content not available for ID: {id})</p>
+                          )}
+                          {urlAsset?.title && <p className="text-xs text-slate-500">{urlAsset.title}</p>}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemovePreApprovedAsset("selectedUrls", id)}
+                          className="text-slate-400 hover:text-red-500 h-8 w-8 opacity-50 group-hover:opacity-100"
+                          aria-label="Remove pre-approved URL"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic mb-4">No pre-approved URLs referenced.</p>
+            )}
+          </div>
           {/* Compliance Summary */}
           <div>
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Compliance Summary</h3>
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
-                <FileCheck className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                <FileCheck className="h-6 w-6 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="text-base font-semibold text-blue-800">Automated Compliance Check Status</h4>
                   {wizardData.complianceResults?.allPassed ? (
-                    <p className="text-sm text-green-700 font-medium mt-1">
-                      All automated compliance checks passed successfully.
-                    </p>
+                    <p className="text-sm text-green-700 font-medium mt-1">All checks passed.</p>
                   ) : (
-                    <p className="text-sm text-red-700 font-medium mt-1">
-                      Some automated compliance checks identified potential issues.
-                    </p>
+                    <p className="text-sm text-red-700 font-medium mt-1">Potential issues.</p>
                   )}
                 </div>
               </div>
-
-              {wizardData.complianceResults && (
-                <div className="text-sm text-slate-700 space-y-1 mb-3">
-                  <p>Number of rules checked: {wizardData.complianceResults.results?.length || "N/A"}.</p>
-                  {wizardData.complianceResults.summary && <p>Summary: {wizardData.complianceResults.summary}</p>}
-                  {!wizardData.complianceResults.allPassed &&
-                    wizardData.complianceResults.results?.some((r) => !r.passed) && (
-                      <p className="text-amber-700">
-                        For a detailed breakdown of any warnings or errors, please refer back to the 'Review Results'
-                        step.
-                      </p>
-                    )}
-                </div>
-              )}
-
               <div className="text-xs text-blue-600 italic border-t border-blue-200 pt-3 mt-3">
-                Please note: The detailed results of these automated compliance checks are for your internal review and
-                guidance. They will not be included in the final generated document intended for external submission.
+                Detailed results are for internal review and not included in the final document.
               </div>
             </div>
           </div>
-
-          {/* Pre-Approved Assets */}
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Pre-Approved Assets</h3>
-
-            {/* Pre-Approved Primary Text */}
-            {wizardData.preApproved.selectedPrimaryText?.length > 0 ? (
-              <div className="mb-6">
-                <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Pre-Approved Primary Text ({wizardData.preApproved.selectedPrimaryText.length})
-                </h4>
-                <div className="space-y-2">
-                  {wizardData.preApproved.selectedPrimaryText.map((primaryId) => {
-                    const primaryText =
-                      preApprovedAssets.primaryText[primaryId as keyof typeof preApprovedAssets.primaryText]
-                    return (
-                      <div key={primaryId} className="p-3 bg-green-50 rounded-lg border border-green-200">
-                        <p className="text-sm text-slate-700">{primaryText || `ID: ${primaryId} not found`}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No pre-approved primary text selected.</p>
-            )}
-
-            {/* Pre-Approved Headlines */}
-            {wizardData.preApproved.selectedHeadlines?.length > 0 ? (
-              <div className="mb-6">
-                <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Pre-Approved Headlines ({wizardData.preApproved.selectedHeadlines.length})
-                </h4>
-                <div className="space-y-2">
-                  {wizardData.preApproved.selectedHeadlines.map((headlineId) => {
-                    const headline = preApprovedAssets.headlines[headlineId as keyof typeof preApprovedAssets.headlines]
-                    return (
-                      <div key={headlineId} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <p className="text-sm text-slate-700">{headline || `ID: ${headlineId} not found`}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No pre-approved headlines selected.</p>
-            )}
-
-            {/* Pre-Approved Creative */}
-            {wizardData.preApproved.selectedCreative.length > 0 ? (
-              <div className="mb-6">
-                <h4 className="text-base font-medium text-slate-700 mb-2">
-                  Pre-Approved Creative ({wizardData.preApproved.selectedCreative.length})
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {wizardData.preApproved.selectedCreative.map((creativeId) => {
-                    const creative = preApprovedAssets.creative[creativeId as keyof typeof preApprovedAssets.creative]
-                    if (!creative) {
-                      return (
-                        <div key={creativeId} className="p-3 bg-red-50 rounded-lg border border-red-200">
-                          <p className="text-sm text-red-700">Creative ID: {creativeId} not found</p>
-                        </div>
-                      )
-                    }
-                    return (
-                      <div
-                        key={creativeId}
-                        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
-                      >
-                        <div className="relative aspect-video bg-slate-100">
-                          <img
-                            src={creative.imageUrl || "/placeholder.svg"}
-                            alt={creative.title}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                        <div className="p-3">
-                          <p className="text-sm font-medium text-slate-800 truncate" title={creative.title}>
-                            {creative.title}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {creative.publisher} • {creative.cardProduct}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 italic mb-6">No pre-approved creative selected.</p>
-            )}
-          </div>
-
           {/* Action Buttons */}
-          <div className="flex justify-center gap-4 pt-6 border-t border-slate-200">
-            <button
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-6 border-t mt-8">
+            <Button
               onClick={() => handleGenerateAction("html")}
               disabled={isGeneratingDocument}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4"
+              className="w-full sm:w-auto bg-blue-600 text-white hover:bg-blue-700" // Restored blue color
             >
               {isGeneratingDocument ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -761,11 +804,11 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
                 <FileText className="h-4 w-4 mr-2" />
               )}
               Preview Document
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleGenerateAction("pdf")}
               disabled={isGeneratingDocument}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-green-600 text-white hover:bg-green-700 h-10 py-2 px-4"
+              className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700" // Restored green color
             >
               {isGeneratingDocument ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -773,68 +816,65 @@ export function ReviewGenerateStep({ wizardData, onUpdate, onNext, onPrev }: Rev
                 <FileCheck className="h-4 w-4 mr-2" />
               )}
               Save as PDF
-            </button>
+            </Button>
           </div>
         </div>
       </CardContent>
-      <div className="flex justify-between p-8 bg-slate-50 rounded-b-lg">
-        <button
-          onClick={onPrev}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-slate-500 text-white hover:bg-slate-600 h-10 py-2 px-4"
-        >
+      <div className="flex flex-col sm:flex-row justify-between items-center p-6 sm:p-8 bg-slate-50 rounded-b-lg border-t">
+        <Button onClick={onPrev} variant="outline" className="w-full sm:w-auto mb-2 sm:mb-0">
           Previous
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onNext}
-          disabled={!wizardData.submission?.docGenerated} // Example: only enable if doc is generated
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 py-2 px-4 disabled:bg-slate-300"
+          disabled={!wizardData.submission?.docGenerated}
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300" // Added disabled styling
         >
           Next
-        </button>
+        </Button>
       </div>
 
       {/* Document Preview Modal */}
-      {/* The modal structure itself remains the same, fixed positioning is correct. */}
-      {/* The `overflow-y-auto` on the backdrop is not strictly needed if the page scrolls, but harmless. */}
       {showDocPreview && documentPreviewUrl && (
         <div
           className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm overflow-y-auto"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="modal-title"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeDocPreview()
-          }}
+          aria-labelledby="modal-title-rg-step6B"
+          onClick={closeDocPreview}
         >
           <div className="flex items-start justify-center min-h-full p-4 pt-12 sm:pt-16 md:pt-20 text-center">
             <div
-              className="relative w-full max-w-5xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden text-left transform transition-all sm:align-middle"
+              className="relative w-full max-w-5xl h-[90vh] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden text-left"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center p-4 border-b bg-slate-50">
-                <h2 id="modal-title" className="text-lg font-semibold text-slate-800">
+                <h2 id="modal-title-rg-step6B" className="text-lg font-semibold text-slate-800">
                   Document Preview
                 </h2>
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     onClick={() => handleGenerateAction("pdf")}
                     disabled={isGeneratingDocument}
-                    className="px-3 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 rounded font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
+                    size="sm"
+                    // variant="outline" // Keep consistent with main button or use specific styling
+                    className="text-xs bg-green-600 text-white hover:bg-green-700"
                   >
                     {isGeneratingDocument ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <FileCheck className="h-3 w-3" />
-                    )}
+                    )}{" "}
                     Save as PDF
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={closeDocPreview}
-                    className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-md"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
                     aria-label="Close preview"
                   >
                     <X className="h-5 w-5" />
-                  </button>
+                  </Button>
                 </div>
               </div>
               <iframe src={documentPreviewUrl} className="w-full flex-grow border-0" title="Document Preview" />

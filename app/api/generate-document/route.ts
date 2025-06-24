@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 // This object is now just for reference for text/urls.
-// Image data will now be URLs from Vercel Blob.
+// Image data will now be URLs from Vercel Blob for user-uploaded,
+// and Base64 for pre-approved creative.
 const preApprovedAssetsReference = {
   primaryText: {
     "primary-1": "Earn 3X points on dining and travel purchases with the Chase Sapphire Preferred Card.",
@@ -10,8 +11,6 @@ const preApprovedAssetsReference = {
     "primary-4": "No foreign transaction fees on purchases made outside the United States.",
     "primary-5": "Complimentary DashPass subscription and Lyft Pink membership included.",
     "primary-6": "Earn 4X points on dining at restaurants worldwide with the American Express Gold Card.",
-    "primary-7": "Get up to $120 in dining credits annually at participating restaurants.",
-    "primary-8": "Enjoy complimentary access to airport lounges worldwide.",
   },
   headlines: {
     "headline-1": "Earn More on Every Purchase",
@@ -19,9 +18,6 @@ const preApprovedAssetsReference = {
     "headline-3": "Unlock Premium Benefits",
     "headline-4": "Your Gateway to More Points",
     "headline-5": "Dining Rewards Redefined",
-    "headline-6": "Premium Travel Experience",
-    "headline-7": "Maximize Your Spending Power",
-    "headline-8": "Exclusive Member Benefits",
   },
   urls: {
     "url-1": {
@@ -46,7 +42,7 @@ const preApprovedAssetsReference = {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("=== Document Generation API Called (URL-based) ===")
+    console.log("=== Document Generation API Called (URL/Base64 based) ===")
     const body = await request.json()
     const { wizardData, format = "html" } = body
 
@@ -55,8 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "wizardData is required" }, { status: 400 })
     }
 
-    // wizardData.assets.staticAdsUrls, wizardData.assets.mockupUrls,
-    // and wizardData.preApproved.preApprovedCreativeUrls should now contain arrays of objects with { name/title, url }
+    // wizardData.assets.staticAdsUrls, wizardData.assets.mockupUrls will be Vercel Blob URLs.
+    // wizardData.preApproved.preApprovedCreativeDataUrls will contain Base64 image data.
 
     const htmlContent = generateDocumentHTML(wizardData)
 
@@ -66,7 +62,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // For PDF, we'll still generate HTML but add PDF controls
     const pdfHtml = generatePDFOptimizedHTML(wizardData)
     return new Response(pdfHtml, {
       headers: { "Content-Type": "text/html", "Cache-Control": "no-cache" },
@@ -91,7 +86,7 @@ function generateDocumentHTML(wizardData: any): string {
   const cardProduct = getCardName(wizardData.projectInfo?.issuer || "", wizardData.projectInfo?.cardProduct || "")
   const submissionName = wizardData.projectInfo?.submissionName || wizardData.documentFilename || "Untitled Submission"
   const submissionType = wizardData.submissionType?.submissionType || ""
-  const introductionText = wizardData.introductionText || getIntroductionTextFallback(wizardData) // Use passed intro or fallback
+  const introductionText = wizardData.introductionText || getIntroductionTextFallback(wizardData)
   const date = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
 
   return `
@@ -182,13 +177,14 @@ function generatePDFOptimizedHTML(wizardData: any): string {
 
 function generatePreApprovedAssetsHTML(wizardData: any): string {
   let html = ""
-  const { selectedPrimaryText, selectedHeadlines, preApprovedCreativeUrls, selectedUrls } = wizardData.preApproved || {}
+  const { selectedPrimaryText, selectedHeadlines, preApprovedCreativeDataUrls, selectedUrls } =
+    wizardData.preApproved || {} // Changed preApprovedCreativeUrls to preApprovedCreativeDataUrls
 
   if (
     !(
       selectedPrimaryText?.length > 0 ||
       selectedHeadlines?.length > 0 ||
-      preApprovedCreativeUrls?.length > 0 ||
+      preApprovedCreativeDataUrls?.length > 0 || // Check preApprovedCreativeDataUrls
       selectedUrls?.length > 0
     )
   ) {
@@ -217,20 +213,23 @@ function generatePreApprovedAssetsHTML(wizardData: any): string {
     })
     html += `</ul>`
   }
-  // Use preApprovedCreativeUrls which contains { id, title, url }
-  if (preApprovedCreativeUrls?.length > 0) {
-    html += `<h3>Pre-Approved Creative (${preApprovedCreativeUrls.length})</h3><div class="image-grid">`
-    preApprovedCreativeUrls.forEach((creative: { title: string; url: string }) => {
-      if (creative && creative.url) {
+
+  // Use preApprovedCreativeDataUrls which contains { id, title, base64 }
+  if (preApprovedCreativeDataUrls?.length > 0) {
+    html += `<h3>Pre-Approved Creative (${preApprovedCreativeDataUrls.length})</h3><div class="image-grid">`
+    preApprovedCreativeDataUrls.forEach((creative: { title: string; base64: string }) => {
+      // Expecting creative.base64 to be a valid Base64 data URL
+      if (creative && creative.base64) {
         html += `
           <div class="image-item">
-              <img src="${creative.url}" alt="${creative.title || "Creative Asset"}" class="creative-image" />
+              <img src="${creative.base64}" alt="${creative.title || "Creative Asset"}" class="creative-image" />
               <div class="image-caption">${creative.title || "Creative Asset"}</div>
           </div>`
       }
     })
     html += `</div>`
   }
+
   if (selectedUrls?.length > 0) {
     html += `<h3>Pre-Approved URLs (${selectedUrls.length})</h3><ul class="asset-list">`
     selectedUrls.forEach((id: string) => {
@@ -248,7 +247,7 @@ function generatePreApprovedAssetsHTML(wizardData: any): string {
 function generateCreativeAssetsHTML(wizardData: any): string {
   let html = ""
   // Expecting wizardData.assets.staticAdsUrls and wizardData.assets.mockupUrls
-  // These should be arrays of objects like { name: string, url: string }
+  // These should be arrays of objects like { name: string, url: string } from Vercel Blob
   const staticAdsUrls = wizardData.assets?.staticAdsUrls || []
   const mockupUrls = wizardData.assets?.mockupUrls || []
 
@@ -382,7 +381,6 @@ function getReportTitle(wizardData: any): string {
   }
 }
 
-// Fallback for introduction text if not provided in wizardData
 function getIntroductionTextFallback(wizardData: any): string {
   const submissionType = wizardData.submissionType?.submissionType
   const { getCardName } = getDisplayNames()
