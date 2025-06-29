@@ -305,9 +305,9 @@ function getDocumentCSS(): string {
     .info-value { color: #1f2937; font-weight: 600; }
     .asset-list { list-style: none; padding: 0; margin: 1rem 0; }
     .asset-item { background: #f8fafc; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; border-left: 3px solid #10b981; font-size: 0.95rem; line-height: 1.5; }
-    .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; } /* Adjusted minmax for smaller images */
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1rem 0; } /* Adjusted minmax for smaller images */
     .image-item { text-align: center; background: #f9fafb; border-radius: 8px; padding: 0.75rem; border: 1px solid #e5e7eb; }
-    .creative-image { width: 100%; max-height: 150px; object-fit: contain; border-radius: 6px; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .creative-image { width: 100%; max-height: 250px; object-fit: contain; border-radius: 6px; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
     .mockup-item { text-align: center; background: #f8fafc; border-radius: 12px; padding: 1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .mockup-image { width: 100%; max-height: 350px; object-fit: contain; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
